@@ -10,8 +10,8 @@ export async function GET(request) {
     let where = {}
     
     if (year) {
-      const startDate = new Date(`${year}-01-01`)
-      const endDate = new Date(`${year}-12-31`)
+      const startDate = new Date(`${year}-01-01T00:00:00.000Z`)
+      const endDate = new Date(`${year}-12-31T23:59:59.999Z`)
       where = {
         date: {
           gte: startDate,
@@ -27,7 +27,11 @@ export async function GET(request) {
     
     return NextResponse.json(holidays)
   } catch (error) {
-    return NextResponse.json({ error: error.message }, { status: 500 })
+    console.error('Error fetching holidays:', error)
+    return NextResponse.json({ 
+      error: error.message,
+      details: 'Failed to fetch holidays from database'
+    }, { status: 500 })
   }
 }
 
@@ -55,7 +59,11 @@ export async function POST(request) {
     
     return NextResponse.json(holiday, { status: 201 })
   } catch (error) {
-    return NextResponse.json({ error: error.message }, { status: 500 })
+    console.error('Error creating holiday:', error)
+    return NextResponse.json({ 
+      error: error.message,
+      details: 'Failed to create holiday'
+    }, { status: 500 })
   }
 }
 
@@ -65,6 +73,9 @@ export async function DELETE() {
     await prisma.holiday.deleteMany({})
     return NextResponse.json({ success: true })
   } catch (error) {
-    return NextResponse.json({ error: error.message }, { status: 500 })
+    console.error('Error deleting holidays:', error)
+    return NextResponse.json({ 
+      error: error.message 
+    }, { status: 500 })
   }
 }
