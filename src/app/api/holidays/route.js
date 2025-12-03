@@ -61,13 +61,12 @@ export async function POST(request) {
   } catch (error) {
     console.error('Error creating holiday:', error)
     return NextResponse.json({ 
-      error: error.message,
-      details: 'Failed to create holiday'
+      error: error.message 
     }, { status: 500 })
   }
 }
 
-// DELETE /api/holidays - Delete all holidays (for bulk operations)
+// DELETE /api/holidays - Delete all holidays
 export async function DELETE() {
   try {
     await prisma.holiday.deleteMany({})

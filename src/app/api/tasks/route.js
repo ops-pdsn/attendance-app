@@ -5,7 +5,7 @@ import prisma from '@/lib/db'
 export async function GET(request) {
   try {
     const { searchParams } = new URL(request.url)
-    const type = searchParams.get('type') // "daily" or "upcoming"
+    const type = searchParams.get('type')
     
     const where = type ? { type } : {}
     
@@ -38,7 +38,7 @@ export async function POST(request) {
         title,
         date: new Date(date),
         type,
-        priority: priority || 'medium', // Add priority field with fallback
+        priority: priority || 'medium',
         notes: notes || ''
       }
     })

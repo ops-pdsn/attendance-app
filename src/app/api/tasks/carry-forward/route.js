@@ -20,7 +20,6 @@ export async function POST(request) {
     const to = new Date(toDate)
     to.setHours(23, 59, 59, 999)
     
-    // Find incomplete tasks from the specified date
     const incompleteTasks = await prisma.task.findMany({
       where: {
         date: {
@@ -38,7 +37,6 @@ export async function POST(request) {
       })
     }
     
-    // Create new tasks for the next day
     const nextDate = new Date(toDate)
     nextDate.setDate(nextDate.getDate() + 1)
     

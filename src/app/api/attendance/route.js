@@ -6,14 +6,35 @@ export async function GET(request) {
   try {
     const { searchParams } = new URL(request.url)
     const limit = parseInt(searchParams.get('limit')) || 30
+    const date = searchParams.get('date')
+    
+    let where = {}
+    if (date) {
+      const targetDate = new Date(date)
+      targetDate.setHours(0, 0, 0, 0)
+      const nextDay = new Date(targetDate)
+      nextDay.setDate(nextDay.getDate() + 1)
+      
+      where = {
+        date: {
+          gte: targetDate,
+          lt: nextDay
+        }
+      }
+    }
     
     const records = await prisma.attendance.findMany({
-      orderBy: { date: 'desc' },
+      where,
+      orderBy: [
+        { date: 'desc' },
+        { session: 'asc' }
+      ],
       take: limit
     })
     
     return NextResponse.json(records)
   } catch (error) {
+    console.error('Error fetching attendance:', error)
     return NextResponse.json({ error: error.message }, { status: 500 })
   }
 }
@@ -22,11 +43,11 @@ export async function GET(request) {
 export async function POST(request) {
   try {
     const body = await request.json()
-    const { date, status, notes, punchIn, punchOut } = body
+    const { date, status, session, notes, punchIn, punchOut } = body
     
-    if (!date || !status) {
+    if (!date || !status || !session) {
       return NextResponse.json(
-        { error: 'Date and status are required' },
+        { error: 'Date, status, and session are required' },
         { status: 400 }
       )
     }
@@ -35,6 +56,7 @@ export async function POST(request) {
     const attendanceData = {
       date: new Date(date),
       status,
+      session: session || 'full_day',
       notes: notes || ''
     }
     
@@ -46,15 +68,21 @@ export async function POST(request) {
       attendanceData.punchOut = new Date(punchOut)
     }
     
-    // Upsert: update if exists for this date, create if not
+    // Upsert: update if exists for this date+session, create if not
     const attendance = await prisma.attendance.upsert({
-      where: { date: new Date(date) },
+      where: { 
+        date_session: {
+          date: new Date(date),
+          session: session || 'full_day'
+        }
+      },
       update: attendanceData,
       create: attendanceData
     })
     
     return NextResponse.json(attendance, { status: 201 })
   } catch (error) {
+    console.error('Error marking attendance:', error)
     return NextResponse.json({ error: error.message }, { status: 500 })
   }
 }
