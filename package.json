@@ -11,13 +11,22 @@
   },
   "dependencies": {
     "@prisma/client": "^5.7.1",
+    "bcryptjs": "^3.0.3",
+    "date-fns": "^4.1.0",
+    "jspdf": "^3.0.4",
+    "jspdf-autotable": "^5.0.2",
     "next": "14.0.4",
+    "next-auth": "^4.24.13",
     "pg": "^8.16.3",
     "prisma": "^5.7.1",
     "react": "^18",
-    "react-dom": "^18"
+    "react-dom": "^18",
+    "react-hot-toast": "^2.6.0",
+    "recharts": "^3.5.1",
+    "resend": "^6.5.2"
   },
   "devDependencies": {
+    "@types/bcryptjs": "^2.4.6",
     "autoprefixer": "^10.0.1",
     "eslint": "^8",
     "eslint-config-next": "14.0.4",

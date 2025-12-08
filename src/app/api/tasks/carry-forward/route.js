@@ -1,9 +1,17 @@
 import { NextResponse } from 'next/server'
+import { getServerSession } from 'next-auth'
+import { authOptions } from '../../auth/[...nextauth]/route'
 import prisma from '@/lib/db'
 
-// POST /api/tasks/carry-forward - Carry forward incomplete tasks
+// POST /api/tasks/carry-forward - Carry forward incomplete tasks for logged-in user
 export async function POST(request) {
   try {
+    // Check authentication
+    const session = await getServerSession(authOptions)
+    if (!session) {
+      return NextResponse.json({ error: 'Unauthorized' }, { status: 401 })
+    }
+
     const body = await request.json()
     const { fromDate, toDate } = body
     
@@ -20,8 +28,10 @@ export async function POST(request) {
     const to = new Date(toDate)
     to.setHours(23, 59, 59, 999)
     
+    // Only get incomplete tasks belonging to this user
     const incompleteTasks = await prisma.task.findMany({
       where: {
+        userId: session.user.id,  // Only this user's tasks
         date: {
           gte: from,
           lte: to
@@ -40,6 +50,7 @@ export async function POST(request) {
     const nextDate = new Date(toDate)
     nextDate.setDate(nextDate.getDate() + 1)
     
+    // Create new tasks linked to this user
     const carriedTasks = await Promise.all(
       incompleteTasks.map(task =>
         prisma.task.create({
@@ -49,7 +60,8 @@ export async function POST(request) {
             type: task.type,
             priority: task.priority,
             notes: task.notes ? `[Carried forward] ${task.notes}` : '[Carried forward from previous day]',
-            completed: false
+            completed: false,
+            userId: session.user.id  // Link to logged-in user
           }
         })
       )
@@ -61,6 +73,7 @@ export async function POST(request) {
       tasks: carriedTasks
     })
   } catch (error) {
+    console.error('POST /api/tasks/carry-forward error:', error)
     return NextResponse.json({ error: error.message }, { status: 500 })
   }
 }
