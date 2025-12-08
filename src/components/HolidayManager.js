@@ -348,7 +348,7 @@ export default function HolidayManager({ onClose, onImported }) {
                   <span className="text-3xl">📅</span>
                 </div>
                 <p className="font-medium text-slate-700 dark:text-slate-300 mb-2">No holidays for {selectedYear}</p>
-                <p className="text-sm text-slate-500 dark:text-slate-400">Click "Import" or "Add Holiday" to get started</p>
+                <p className="text-sm text-slate-500 dark:text-slate-400">Click &quot;Import&quot; or &quot;Add Holiday&quot; to get started</p>
               </div>
             ) : (
               <div className="space-y-3">

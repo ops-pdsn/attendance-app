@@ -493,7 +493,7 @@ export default function ProfilePage() {
                 </form>
               ) : (
                 <p className="text-slate-400 text-sm">
-                  Click "Change" to update your password. You'll need to enter your current password for verification.
+                  Click &quot;Change&quot; to update your password. You&quot;ll need to enter your current password for verification.
                 </p>
               )}
             </div>

@@ -271,7 +271,7 @@ export default function ShiftManagement() {
             <div className="divide-y divide-slate-200 dark:divide-slate-700">
               {shifts.length === 0 ? (
                 <div className="p-8 text-center text-slate-500">
-                  No shifts created yet. Click "Add Shift" to create one.
+                  No shifts created yet. Click &quot;Add Shift&quot; to create one.
                 </div>
               ) : (
                 shifts.map(shift => (
