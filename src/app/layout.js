@@ -1,3 +1,6 @@
+export const dynamic = 'force-dynamic'
+export const fetchCache = 'force-no-store'
+
 import { Inter } from 'next/font/google'
 import './globals.css'
 import { Providers } from './providers'
@@ -6,11 +9,6 @@ import { ConfirmProvider } from '@/components/ConfirmDialog'
 import PWAInstallPrompt from '@/components/PWAInstallPrompt'
 import ServiceWorkerRegistration from '@/components/ServiceWorkerRegistration'
 import NetworkStatus from '@/components/NetworkStatus'
-
-
-export const dynamic = 'force-dynamic'
-export const fetchCache = 'force-no-store'
-
 
 const inter = Inter({ subsets: ['latin'] })
 

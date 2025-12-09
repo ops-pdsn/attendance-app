@@ -1,5 +1,8 @@
 'use client'
 
+export const dynamic = 'force-dynamic'
+export const fetchCache = 'force-no-store'
+
 import { useState, useEffect, useRef } from 'react'
 import { createPortal } from 'react-dom'
 import Calendar from '@/components/Calendar'
