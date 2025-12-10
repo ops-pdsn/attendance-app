@@ -3,6 +3,8 @@ import { getServerSession } from 'next-auth'
 import { authOptions } from '../../auth/[...nextauth]/route'
 import prisma from '@/lib/db'
 
+export const dynamic = 'force-dynamic'
+
 // PATCH /api/tasks/[id] - Update a task (only if owned by user)
 export async function PATCH(request, { params }) {
   try {

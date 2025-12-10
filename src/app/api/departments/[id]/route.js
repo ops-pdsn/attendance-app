@@ -3,6 +3,8 @@ import { getServerSession } from 'next-auth'
 import { authOptions } from '../../auth/[...nextauth]/route'
 import prisma from '@/lib/db'
 
+export const dynamic = 'force-dynamic'
+
 // GET /api/departments/[id] - Get single department
 export async function GET(request, { params }) {
   try {

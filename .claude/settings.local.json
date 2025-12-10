@@ -1,0 +1,26 @@
+{
+  "permissions": {
+    "allow": [
+      "Bash(npm run build:*)",
+      "Bash(tee:*)",
+      "Bash(npx prisma:*)",
+      "Bash(cat:*)",
+      "Bash(npm install:*)",
+      "Bash(for file in \"src/app/api/departments/[id]/route.js\" \"src/app/api/holidays/[id]/route.js\" \"src/app/api/leave-requests/[id]/route.js\" \"src/app/api/notifications/[id]/route.js\" \"src/app/api/shifts/[id]/route.js\" \"src/app/api/shifts/assignments/[id]/route.js\" \"src/app/api/tasks/[id]/route.js\")",
+      "Bash(do if [ -f \"$file\" ])",
+      "Bash(then if ! grep -q \"export const dynamic\" \"$file\")",
+      "Bash(then echo \"export const dynamic = ''''force-dynamic''''\")",
+      "Bash(timeout:*)",
+      "Bash(if [ -f .env ])",
+      "Bash(then echo \"=== .env file exists ===\")",
+      "Bash(else echo \".env file not found\")",
+      "Bash(fi)",
+      "Bash(taskkill:*)",
+      "Bash(npx next build)",
+      "Bash(then grep -v \"DATABASE_URL\\|DIRECT_URL\\|NEXTAUTH_SECRET\\|RESEND_API_KEY\" .env)",
+      "Bash(git add:*)"
+    ],
+    "deny": [],
+    "ask": []
+  }
+}

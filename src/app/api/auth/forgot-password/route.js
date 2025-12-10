@@ -2,6 +2,8 @@ import { NextResponse } from 'next/server'
 import prisma from '@/lib/db'
 import crypto from 'crypto'
 
+export const dynamic = 'force-dynamic'
+
 // POST /api/auth/forgot-password - Request password reset
 export async function POST(request) {
   try {

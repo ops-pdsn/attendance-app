@@ -3,6 +3,8 @@ import { getServerSession } from 'next-auth'
 import { authOptions } from '../../auth/[...nextauth]/route'
 import prisma from '@/lib/db'
 
+export const dynamic = 'force-dynamic'
+
 // POST /api/admin/bulk - Perform bulk actions on users
 export async function POST(request) {
   try {

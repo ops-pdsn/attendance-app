@@ -4,6 +4,8 @@ import { authOptions } from '../../auth/[...nextauth]/route'
 import prisma from '@/lib/db'
 import { sendLeaveApprovedEmail, sendLeaveRejectedEmail } from '@/lib/email'
 
+export const dynamic = 'force-dynamic'
+
 // GET /api/leave-requests/[id] - Get single leave request
 export async function GET(request, { params }) {
   try {
