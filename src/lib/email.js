@@ -1,15 +1,27 @@
 import { Resend } from 'resend'
 
-const resend = new Resend(process.env.RESEND_API_KEY)
-
 const FROM_EMAIL = 'Attendance Monitor <onboarding@resend.dev>'
 
 // For production, use your verified domain:
 // const FROM_EMAIL = 'Attendance Monitor <noreply@yourdomain.com>'
 
+// Lazy initialization to prevent build-time errors when RESEND_API_KEY is not set
+let resendClient = null
+function getResendClient() {
+  if (!process.env.RESEND_API_KEY) {
+    return null
+  }
+  if (!resendClient) {
+    resendClient = new Resend(process.env.RESEND_API_KEY)
+  }
+  return resendClient
+}
+
 export async function sendEmail({ to, subject, html, text }) {
   try {
-    if (!process.env.RESEND_API_KEY) {
+    const resend = getResendClient()
+
+    if (!resend) {
       console.log('Email skipped - No RESEND_API_KEY configured')
       return { success: false, error: 'Email not configured' }
     }
