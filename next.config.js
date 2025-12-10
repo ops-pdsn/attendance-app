@@ -9,8 +9,8 @@ const nextConfig = {
   experimental: {
     serverComponentsExternalPackages: ['@prisma/client', 'bcryptjs'],
   },
-  // Disable static optimization for pages using Prisma
   output: 'standalone',
+  staticPageGenerationTimeout: 120, // Add this line
 }
 
 module.exports = nextConfig

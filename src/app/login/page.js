@@ -1,6 +1,7 @@
 'use client'
 
-export const dynamic = 'force-dynamic'
+
+
 
 import { useState } from 'react'
 import { signIn } from 'next-auth/react'
