@@ -1,6 +1,6 @@
 import { NextResponse } from 'next/server'
 import { getServerSession } from 'next-auth'
-import { authOptions } from '../../auth/[...nextauth]/route'
+import { authOptions } from '@/lib/authOptions'
 import prisma from '@/lib/db'
 import { sendLeaveApprovedEmail, sendLeaveRejectedEmail } from '@/lib/email'
 
@@ -274,36 +274,3 @@ export async function DELETE(request, { params }) {
   }
 }
 
-// After approval
-if (action === 'approve') {
-  // ... existing approval code ...
-  
-  // Send email notification
-  const startDateFormatted = new Date(leaveRequest.startDate).toLocaleDateString()
-  const endDateFormatted = new Date(leaveRequest.endDate).toLocaleDateString()
-  
-  await sendLeaveApprovedEmail(
-    leaveRequest.user.email,
-    leaveRequest.user.name,
-    leaveRequest.leaveType.name,
-    startDateFormatted,
-    endDateFormatted,
-    session.user.name
-  )
-}
-
-// After rejection
-if (action === 'reject') {
-  // ... existing rejection code ...
-  
-  // Send email notification
-  await sendLeaveRejectedEmail(
-    leaveRequest.user.email,
-    leaveRequest.user.name,
-    leaveRequest.leaveType.name,
-    startDateFormatted,
-    endDateFormatted,
-    session.user.name,
-    rejectionReason
-  )
-}

@@ -1,0 +1,237 @@
+generator client {
+  provider = "prisma-client-js"
+  previewFeatures = ["driverAdapters"]
+}
+
+datasource db {
+  provider  = "postgresql"
+  url       = env("DATABASE_URL")
+  directUrl = env("DIRECT_URL")
+}
+
+model User {
+  id            String   @id @default(cuid())
+  email         String   @unique
+  password      String
+  name          String?
+  role          String   @default("employee")
+  department    String?
+  employeeId    String?
+  phone         String?
+  isActive      Boolean  @default(true)
+  managerId     String?
+  manager       User?    @relation("UserManager", fields: [managerId], references: [id])
+  subordinates  User[]   @relation("UserManager")
+  createdAt     DateTime @default(now())
+  updatedAt     DateTime @updatedAt
+  userShifts  UserShift[]
+  
+  tasks            Task[]
+  attendance       Attendance[]
+  leaveBalances    LeaveBalance[]
+  leaveRequests    LeaveRequest[]    @relation("LeaveRequester")
+  leaveApprovals   LeaveRequest[]    @relation("LeaveApprover")
+  notifications    Notification[]
+
+  @@index([email])
+  @@index([managerId])
+}
+
+model Task {
+  id        String   @id @default(cuid())
+  title     String
+  date      DateTime
+  type      String
+  priority  String   @default("medium")
+  completed Boolean  @default(false)
+  notes     String?
+  userId    String
+  user      User     @relation(fields: [userId], references: [id], onDelete: Cascade)
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+  
+  @@index([userId])
+  @@index([date])
+  @@index([priority])
+}
+
+model Attendance {
+  id         String    @id @default(cuid())
+  date       DateTime
+  status     String
+  session    String    @default("full_day")
+  punchIn    DateTime?
+  punchOut   DateTime?
+  notes      String?
+  location   String?
+  latitude   Float?
+  longitude  Float?
+  userId     String
+  user       User      @relation(fields: [userId], references: [id], onDelete: Cascade)
+  createdAt  DateTime  @default(now())
+  updatedAt  DateTime  @updatedAt
+
+  @@unique([date, session, userId])
+  @@index([userId])
+  @@index([date])
+}
+
+model Holiday {
+  id          String   @id @default(cuid())
+  name        String
+  date        DateTime @unique
+  type        String   @default("public")
+  description String?
+  createdAt   DateTime @default(now())
+  updatedAt   DateTime @updatedAt
+  
+  @@index([date])
+}
+
+model Department {
+  id          String   @id @default(cuid())
+  name        String   @unique
+  description String?
+  color       String   @default("#3b82f6")
+  isActive    Boolean  @default(true)
+  createdAt   DateTime @default(now())
+  updatedAt   DateTime @updatedAt
+
+  @@index([name])
+}
+
+model PasswordResetToken {
+  id        String   @id @default(cuid())
+  email     String
+  token     String   @unique
+  expiresAt DateTime
+  used      Boolean  @default(false)
+  createdAt DateTime @default(now())
+
+  @@index([email])
+  @@index([token])
+}
+
+// ==================== LEAVE MANAGEMENT ====================
+
+model LeaveType {
+  id               String   @id @default(cuid())
+  name             String   @unique
+  code             String   @unique
+  description      String?
+  color            String   @default("#3b82f6")
+  defaultDays      Int      @default(0)
+  carryForward     Boolean  @default(false)
+  maxCarryForward  Int      @default(0)
+  requiresApproval Boolean  @default(true)
+  isActive         Boolean  @default(true)
+  isPaid           Boolean  @default(true)
+  createdAt        DateTime @default(now())
+  updatedAt        DateTime @updatedAt
+
+  leaveBalances LeaveBalance[]
+  leaveRequests LeaveRequest[]
+
+  @@index([code])
+}
+
+model LeaveBalance {
+  id           String    @id @default(cuid())
+  year         Int
+  total        Float     @default(0)
+  used         Float     @default(0)
+  pending      Float     @default(0)
+  carryForward Float     @default(0)
+  userId       String
+  user         User      @relation(fields: [userId], references: [id], onDelete: Cascade)
+  leaveTypeId  String
+  leaveType    LeaveType @relation(fields: [leaveTypeId], references: [id], onDelete: Cascade)
+  createdAt    DateTime  @default(now())
+  updatedAt    DateTime  @updatedAt
+
+  @@unique([userId, leaveTypeId, year])
+  @@index([userId])
+  @@index([year])
+}
+
+model LeaveRequest {
+  id               String    @id @default(cuid())
+  startDate        DateTime
+  endDate          DateTime
+  days             Float
+  reason           String?
+  status           String    @default("pending") // pending, approved, rejected, cancelled
+  type             String    @default("full")    // full, first_half, second_half
+  emergencyContact String?
+  
+  // Approval details
+  approvedBy       String?
+  approver         User?     @relation("LeaveApprover", fields: [approvedBy], references: [id])
+  approvedAt       DateTime?
+  rejectionReason  String?
+  
+  // Relations
+  userId           String
+  user             User      @relation("LeaveRequester", fields: [userId], references: [id], onDelete: Cascade)
+  leaveTypeId      String
+  leaveType        LeaveType @relation(fields: [leaveTypeId], references: [id])
+  
+  createdAt        DateTime  @default(now())
+  updatedAt        DateTime  @updatedAt
+
+  @@index([userId])
+  @@index([status])
+  @@index([startDate, endDate])
+  @@index([leaveTypeId])
+}
+
+// ==================== NOTIFICATIONS ====================
+
+model Notification {
+  id        String   @id @default(cuid())
+  title     String
+  message   String
+  type      String   @default("info") // info, success, warning, error, leave, task, attendance
+  isRead    Boolean  @default(false)
+  link      String?
+  userId    String
+  user      User     @relation(fields: [userId], references: [id], onDelete: Cascade)
+  createdAt DateTime @default(now())
+
+  @@index([userId])
+  @@index([isRead])
+  @@index([createdAt])
+}
+
+model Shift {
+  id          String   @id @default(cuid())
+  name        String   // Morning, Evening, Night, etc.
+  code        String   @unique // MOR, EVE, NIG
+  startTime   String   // "09:00"
+  endTime     String   // "17:00"
+  breakMinutes Int     @default(60)
+  graceMinutes Int     @default(15) // Grace period for late arrival
+  color       String   @default("#3b82f6")
+  isActive    Boolean  @default(true)
+  createdAt   DateTime @default(now())
+  updatedAt   DateTime @updatedAt
+
+  // Relations
+  userShifts  UserShift[]
+}
+
+model UserShift {
+  id        String   @id @default(cuid())
+  userId    String
+  shiftId   String
+  startDate DateTime
+  endDate   DateTime?
+  isActive  Boolean  @default(true)
+  createdAt DateTime @default(now())
+
+  user  User  @relation(fields: [userId], references: [id], onDelete: Cascade)
+  shift Shift @relation(fields: [shiftId], references: [id], onDelete: Cascade)
+
+  @@index([userId])
+  @@index([shiftId])
+}

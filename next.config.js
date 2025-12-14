@@ -10,7 +10,13 @@ const nextConfig = {
     serverComponentsExternalPackages: ['@prisma/client', 'bcryptjs'],
   },
   output: 'standalone',
-  staticPageGenerationTimeout: 120, // Add this line
+  images: {
+    unoptimized: true,
+  },
+  // Increase timeout for static page generation
+  staticPageGenerationTimeout: 180,
+  // Disable powered by header for security
+  poweredByHeader: false,
 }
 
 module.exports = nextConfig

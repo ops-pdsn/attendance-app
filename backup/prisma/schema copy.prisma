@@ -1,0 +1,41 @@
+generator client {
+  provider = "prisma-client-js"
+}
+
+datasource db {
+  provider = "sqlite"
+  url      = "file:./dev.db"
+}
+
+model Task {
+  id        String   @id @default(cuid())
+  title     String
+  date      DateTime
+  type      String   // "daily" or "upcoming"
+  priority  String   @default("medium") // "high", "medium", "low"
+  completed Boolean  @default(false)
+  notes     String?
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+}
+
+model Attendance {
+  id         String   @id @default(cuid())
+  date       DateTime @unique
+  status     String   // "office", "field", "weekoff", "holiday"
+  punchIn    DateTime?
+  punchOut   DateTime?
+  notes      String?
+  createdAt  DateTime @default(now())
+  updatedAt  DateTime @updatedAt
+}
+
+model Holiday {
+  id          String   @id @default(cuid())
+  name        String
+  date        DateTime @unique
+  type        String   @default("public") // "public", "optional", "restricted"
+  description String?
+  createdAt   DateTime @default(now())
+  updatedAt   DateTime @updatedAt
+}

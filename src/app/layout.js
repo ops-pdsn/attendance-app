@@ -1,7 +1,4 @@
-export const dynamic = 'force-dynamic'
-export const fetchCache = 'force-no-store'
-
-import { Inter } from 'next/font/google'
+import { headers } from 'next/headers'
 import './globals.css'
 import { Providers } from './providers'
 import { ToastProvider } from '@/components/Toast'
@@ -10,7 +7,9 @@ import PWAInstallPrompt from '@/components/PWAInstallPrompt'
 import ServiceWorkerRegistration from '@/components/ServiceWorkerRegistration'
 import NetworkStatus from '@/components/NetworkStatus'
 
-const inter = Inter({ subsets: ['latin'] })
+// Force dynamic rendering for all pages - prevents static generation timeout
+export const dynamic = 'force-dynamic'
+export const fetchCache = 'force-no-store'
 
 export const metadata = {
   title: 'Attendance Monitor',
@@ -34,7 +33,10 @@ export const viewport = {
   userScalable: false
 }
 
-export default function RootLayout({ children }) {
+export default async function RootLayout({ children }) {
+  // Force dynamic rendering by calling headers()
+  headers()
+
   return (
     <html lang="en" suppressHydrationWarning>
       <head>
@@ -71,7 +73,7 @@ export default function RootLayout({ children }) {
           }}
         />
       </head>
-      <body className={inter.className}>
+      <body className="font-sans antialiased">
         <Providers>
           <ToastProvider>
             <ConfirmProvider>
