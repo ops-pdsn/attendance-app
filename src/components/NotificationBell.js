@@ -10,7 +10,7 @@ export default function NotificationBell() {
   const [unreadCount, setUnreadCount] = useState(0)
   const [showDropdown, setShowDropdown] = useState(false)
   const [loading, setLoading] = useState(false)
-  const [dropdownPosition, setDropdownPosition] = useState({ top: 0, right: 0 })
+  const [dropdownPosition, setDropdownPosition] = useState({ top: 0, right: 0, useFullWidth: false })
   const [mounted, setMounted] = useState(false)
   
   const buttonRef = useRef(null)
@@ -21,7 +21,6 @@ export default function NotificationBell() {
     setMounted(true)
     fetchNotifications()
     
-    // Poll for new notifications every 30 seconds
     const interval = setInterval(fetchNotifications, 30000)
     return () => clearInterval(interval)
   }, [])
@@ -30,11 +29,32 @@ export default function NotificationBell() {
   useEffect(() => {
     if (showDropdown && buttonRef.current) {
       const rect = buttonRef.current.getBoundingClientRect()
+      const isMobile = window.innerWidth < 640
+      
       setDropdownPosition({
         top: rect.bottom + 8,
-        right: window.innerWidth - rect.right
+        right: isMobile ? 8 : Math.max(8, window.innerWidth - rect.right),
+        useFullWidth: isMobile
       })
     }
+  }, [showDropdown])
+
+  // Handle resize
+  useEffect(() => {
+    const handleResize = () => {
+      if (showDropdown && buttonRef.current) {
+        const rect = buttonRef.current.getBoundingClientRect()
+        const isMobile = window.innerWidth < 640
+        setDropdownPosition({
+          top: rect.bottom + 8,
+          right: isMobile ? 8 : Math.max(8, window.innerWidth - rect.right),
+          useFullWidth: isMobile
+        })
+      }
+    }
+
+    window.addEventListener('resize', handleResize)
+    return () => window.removeEventListener('resize', handleResize)
   }, [showDropdown])
 
   // Close dropdown on outside click
@@ -139,7 +159,7 @@ export default function NotificationBell() {
     switch (type) {
       case 'success':
         return (
-          <div className="w-8 h-8 bg-emerald-100 dark:bg-emerald-500/20 rounded-lg flex items-center justify-center">
+          <div className="w-8 h-8 bg-emerald-100 dark:bg-emerald-500/20 rounded-lg flex items-center justify-center flex-shrink-0">
             <svg className="w-4 h-4 text-emerald-600 dark:text-emerald-400" fill="none" stroke="currentColor" viewBox="0 0 24 24">
               <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M5 13l4 4L19 7" />
             </svg>
@@ -147,7 +167,7 @@ export default function NotificationBell() {
         )
       case 'warning':
         return (
-          <div className="w-8 h-8 bg-amber-100 dark:bg-amber-500/20 rounded-lg flex items-center justify-center">
+          <div className="w-8 h-8 bg-amber-100 dark:bg-amber-500/20 rounded-lg flex items-center justify-center flex-shrink-0">
             <svg className="w-4 h-4 text-amber-600 dark:text-amber-400" fill="none" stroke="currentColor" viewBox="0 0 24 24">
               <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M12 9v2m0 4h.01m-6.938 4h13.856c1.54 0 2.502-1.667 1.732-3L13.732 4c-.77-1.333-2.694-1.333-3.464 0L3.34 16c-.77 1.333.192 3 1.732 3z" />
             </svg>
@@ -155,7 +175,7 @@ export default function NotificationBell() {
         )
       case 'error':
         return (
-          <div className="w-8 h-8 bg-red-100 dark:bg-red-500/20 rounded-lg flex items-center justify-center">
+          <div className="w-8 h-8 bg-red-100 dark:bg-red-500/20 rounded-lg flex items-center justify-center flex-shrink-0">
             <svg className="w-4 h-4 text-red-600 dark:text-red-400" fill="none" stroke="currentColor" viewBox="0 0 24 24">
               <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M6 18L18 6M6 6l12 12" />
             </svg>
@@ -163,13 +183,13 @@ export default function NotificationBell() {
         )
       case 'leave':
         return (
-          <div className="w-8 h-8 bg-purple-100 dark:bg-purple-500/20 rounded-lg flex items-center justify-center">
+          <div className="w-8 h-8 bg-purple-100 dark:bg-purple-500/20 rounded-lg flex items-center justify-center flex-shrink-0">
             <span className="text-lg">🏖️</span>
           </div>
         )
       case 'task':
         return (
-          <div className="w-8 h-8 bg-blue-100 dark:bg-blue-500/20 rounded-lg flex items-center justify-center">
+          <div className="w-8 h-8 bg-blue-100 dark:bg-blue-500/20 rounded-lg flex items-center justify-center flex-shrink-0">
             <svg className="w-4 h-4 text-blue-600 dark:text-blue-400" fill="none" stroke="currentColor" viewBox="0 0 24 24">
               <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M9 5H7a2 2 0 00-2 2v12a2 2 0 002 2h10a2 2 0 002-2V7a2 2 0 00-2-2h-2M9 5a2 2 0 002 2h2a2 2 0 002-2M9 5a2 2 0 012-2h2a2 2 0 012 2" />
             </svg>
@@ -177,7 +197,7 @@ export default function NotificationBell() {
         )
       case 'attendance':
         return (
-          <div className="w-8 h-8 bg-green-100 dark:bg-green-500/20 rounded-lg flex items-center justify-center">
+          <div className="w-8 h-8 bg-green-100 dark:bg-green-500/20 rounded-lg flex items-center justify-center flex-shrink-0">
             <svg className="w-4 h-4 text-green-600 dark:text-green-400" fill="none" stroke="currentColor" viewBox="0 0 24 24">
               <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M8 7V3m8 4V3m-9 8h10M5 21h14a2 2 0 002-2V7a2 2 0 00-2-2H5a2 2 0 00-2 2v12a2 2 0 002 2z" />
             </svg>
@@ -185,7 +205,7 @@ export default function NotificationBell() {
         )
       default:
         return (
-          <div className="w-8 h-8 bg-blue-100 dark:bg-blue-500/20 rounded-lg flex items-center justify-center">
+          <div className="w-8 h-8 bg-blue-100 dark:bg-blue-500/20 rounded-lg flex items-center justify-center flex-shrink-0">
             <svg className="w-4 h-4 text-blue-600 dark:text-blue-400" fill="none" stroke="currentColor" viewBox="0 0 24 24">
               <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M13 16h-1v-4h-1m1-4h.01M21 12a9 9 0 11-18 0 9 9 0 0118 0z" />
             </svg>
@@ -209,20 +229,22 @@ export default function NotificationBell() {
     return notifDate.toLocaleDateString()
   }
 
-  // Notification Dropdown Component
   const NotificationDropdown = () => (
     <div 
       id="notification-dropdown"
-      className="fixed bg-white dark:bg-slate-800 rounded-2xl shadow-2xl border border-slate-200 dark:border-slate-700 w-96 max-h-[500px] overflow-hidden flex flex-col"
+      className="fixed bg-white dark:bg-slate-800 rounded-2xl shadow-2xl border border-slate-200 dark:border-slate-700 max-h-[70vh] overflow-hidden flex flex-col"
       style={{
         top: dropdownPosition.top,
-        right: Math.max(8, dropdownPosition.right),
+        right: dropdownPosition.right,
+        left: dropdownPosition.useFullWidth ? 8 : 'auto',
+        width: dropdownPosition.useFullWidth ? 'calc(100% - 16px)' : '384px',
+        maxWidth: dropdownPosition.useFullWidth ? '100%' : '384px',
         zIndex: 99999,
         animation: 'dropdownIn 0.2s ease-out'
       }}
     >
       {/* Header */}
-      <div className="px-4 py-3 border-b border-slate-200 dark:border-slate-700 flex items-center justify-between bg-gradient-to-r from-blue-50 to-indigo-50 dark:from-slate-800 dark:to-slate-800">
+      <div className="px-4 py-3 border-b border-slate-200 dark:border-slate-700 flex items-center justify-between bg-gradient-to-r from-blue-50 to-indigo-50 dark:from-slate-800 dark:to-slate-800 flex-shrink-0">
         <div className="flex items-center gap-2">
           <span className="text-lg">🔔</span>
           <h3 className="font-semibold text-slate-900 dark:text-white">Notifications</h3>
@@ -269,7 +291,7 @@ export default function NotificationBell() {
                   {getTypeIcon(notification.type)}
                   <div className="flex-1 min-w-0">
                     <div className="flex items-start justify-between gap-2">
-                      <p className={`text-sm ${!notification.isRead ? 'font-semibold text-slate-900 dark:text-white' : 'font-medium text-slate-700 dark:text-slate-300'}`}>
+                      <p className={`text-sm ${!notification.isRead ? 'font-semibold text-slate-900 dark:text-white' : 'font-medium text-slate-700 dark:text-slate-300'} truncate`}>
                         {notification.title}
                       </p>
                       {!notification.isRead && (
@@ -285,7 +307,7 @@ export default function NotificationBell() {
                   </div>
                   <button
                     onClick={(e) => handleDelete(notification.id, e)}
-                    className="opacity-0 group-hover:opacity-100 p-1 hover:bg-red-100 dark:hover:bg-red-500/20 rounded-lg transition-all"
+                    className="opacity-0 group-hover:opacity-100 p-1 hover:bg-red-100 dark:hover:bg-red-500/20 rounded-lg transition-all flex-shrink-0"
                   >
                     <svg className="w-4 h-4 text-red-500" fill="none" stroke="currentColor" viewBox="0 0 24 24">
                       <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M19 7l-.867 12.142A2 2 0 0116.138 21H7.862a2 2 0 01-1.995-1.858L5 7m5 4v6m4-6v6m1-10V4a1 1 0 00-1-1h-4a1 1 0 00-1 1v3M4 7h16" />
@@ -300,7 +322,7 @@ export default function NotificationBell() {
 
       {/* Footer */}
       {notifications.length > 0 && (
-        <div className="px-4 py-3 border-t border-slate-200 dark:border-slate-700 bg-slate-50 dark:bg-slate-800/50">
+        <div className="px-4 py-3 border-t border-slate-200 dark:border-slate-700 bg-slate-50 dark:bg-slate-800/50 flex-shrink-0">
           <button
             onClick={() => {
               router.push('/notifications')
@@ -350,7 +372,6 @@ export default function NotificationBell() {
           />
         </svg>
         
-        {/* Unread Badge */}
         {unreadCount > 0 && (
           <span className="absolute -top-1 -right-1 w-5 h-5 bg-red-500 text-white text-xs font-bold rounded-full flex items-center justify-center animate-pulse">
             {unreadCount > 9 ? '9+' : unreadCount}
@@ -358,7 +379,6 @@ export default function NotificationBell() {
         )}
       </button>
 
-      {/* Portal Dropdown */}
       {mounted && showDropdown && createPortal(
         <>
           <div 

@@ -3,6 +3,8 @@ import { getServerSession } from 'next-auth'
 import { authOptions } from '@/lib/authOptions'
 import prisma from '@/lib/db'
 
+export const dynamic = 'force-dynamic';
+
 // GET /api/admin/stats - Get dashboard statistics (Admin/HR only)
 export async function GET(request) {
   try {

@@ -8,7 +8,7 @@ import Link from 'next/link'
 export default function UserNav() {
   const { data: session, status } = useSession()
   const [showDropdown, setShowDropdown] = useState(false)
-  const [dropdownPosition, setDropdownPosition] = useState({ top: 0, right: 0 })
+  const [dropdownPosition, setDropdownPosition] = useState({ top: 0, right: 0, useFullWidth: false })
   const buttonRef = useRef(null)
   const dropdownRef = useRef(null)
   const [mounted, setMounted] = useState(false)
@@ -21,9 +21,12 @@ export default function UserNav() {
   useEffect(() => {
     if (showDropdown && buttonRef.current) {
       const rect = buttonRef.current.getBoundingClientRect()
+      const isMobile = window.innerWidth < 640
+      
       setDropdownPosition({
         top: rect.bottom + 8,
-        right: window.innerWidth - rect.right
+        right: isMobile ? 8 : window.innerWidth - rect.right,
+        useFullWidth: isMobile
       })
     }
   }, [showDropdown])
@@ -45,14 +48,28 @@ export default function UserNav() {
       setShowDropdown(false)
     }
 
+    const handleResize = () => {
+      if (showDropdown && buttonRef.current) {
+        const rect = buttonRef.current.getBoundingClientRect()
+        const isMobile = window.innerWidth < 640
+        setDropdownPosition({
+          top: rect.bottom + 8,
+          right: isMobile ? 8 : window.innerWidth - rect.right,
+          useFullWidth: isMobile
+        })
+      }
+    }
+
     if (showDropdown) {
       document.addEventListener('mousedown', handleClickOutside)
       window.addEventListener('scroll', handleScroll, true)
+      window.addEventListener('resize', handleResize)
     }
 
     return () => {
       document.removeEventListener('mousedown', handleClickOutside)
       window.removeEventListener('scroll', handleScroll, true)
+      window.removeEventListener('resize', handleResize)
     }
   }, [showDropdown])
 
@@ -106,10 +123,13 @@ export default function UserNav() {
   const DropdownMenu = () => (
     <div 
       ref={dropdownRef}
-      className="fixed w-72 bg-white dark:bg-slate-800 rounded-2xl shadow-2xl border border-slate-200 dark:border-slate-700 overflow-hidden"
+      className="fixed bg-white dark:bg-slate-800 rounded-2xl shadow-2xl border border-slate-200 dark:border-slate-700 overflow-hidden max-h-[80vh] overflow-y-auto"
       style={{
         top: dropdownPosition.top,
         right: dropdownPosition.right,
+        left: dropdownPosition.useFullWidth ? 8 : 'auto',
+        width: dropdownPosition.useFullWidth ? 'calc(100% - 16px)' : '288px',
+        maxWidth: dropdownPosition.useFullWidth ? '100%' : '288px',
         zIndex: 99999,
         animation: 'dropdownIn 0.2s ease-out'
       }}
@@ -117,7 +137,7 @@ export default function UserNav() {
       {/* User Header */}
       <div className="p-4 bg-gradient-to-r from-slate-50 to-slate-100 dark:from-slate-800 dark:to-slate-750 border-b border-slate-200 dark:border-slate-700">
         <div className="flex items-center gap-3">
-          <div className={`w-12 h-12 bg-gradient-to-br ${getAvatarGradient()} rounded-xl flex items-center justify-center text-white font-bold shadow-lg`}>
+          <div className={`w-12 h-12 bg-gradient-to-br ${getAvatarGradient()} rounded-xl flex items-center justify-center text-white font-bold shadow-lg flex-shrink-0`}>
             {initials}
           </div>
           <div className="flex-1 min-w-0">
@@ -150,109 +170,105 @@ export default function UserNav() {
 
       {/* Menu Items */}
       <div className="p-2">
-        {/* Profile Link */}
         <Link
           href="/profile"
           onClick={() => setShowDropdown(false)}
           className="flex items-center gap-3 px-3 py-2.5 text-sm text-slate-700 dark:text-slate-300 hover:bg-slate-100 dark:hover:bg-slate-700/50 rounded-xl transition-colors"
         >
-          <div className="w-8 h-8 bg-blue-100 dark:bg-blue-500/20 rounded-lg flex items-center justify-center">
+          <div className="w-8 h-8 bg-blue-100 dark:bg-blue-500/20 rounded-lg flex items-center justify-center flex-shrink-0">
             <svg className="w-4 h-4 text-blue-600 dark:text-blue-400" fill="none" stroke="currentColor" viewBox="0 0 24 24">
               <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M16 7a4 4 0 11-8 0 4 4 0 018 0zM12 14a7 7 0 00-7 7h14a7 7 0 00-7-7z" />
             </svg>
           </div>
-          <div>
-            <p className="font-medium"> My Profile</p>
-            <p className="text-xs text-slate-500 dark:text-slate-400">View and edit your profile</p>
+          <div className="min-w-0">
+            <p className="font-medium truncate">My Profile</p>
+            <p className="text-xs text-slate-500 dark:text-slate-400 truncate">View and edit your profile</p>
           </div>
         </Link>
-        {/* Leave Management Link - Add this after My Profile */}
-<Link
-  href="/leave"
-  onClick={() => setShowDropdown(false)}
-  className="flex items-center gap-3 px-3 py-2.5 text-sm text-slate-700 dark:text-slate-300 hover:bg-slate-100 dark:hover:bg-slate-700/50 rounded-xl transition-colors"
->
-  <div className="w-8 h-8 bg-green-100 dark:bg-green-500/20 rounded-lg flex items-center justify-center">
-    <span className="text-lg">🏖️</span>
-  </div>
-  <div>
-    <p className="font-medium"> Leave</p>
-    <p className="text-xs text-slate-500 dark:text-slate-400">Apply & manage leaves</p>
-  </div>
-</Link>
 
-<Link
-  href="/timesheet"
-  onClick={() => setShowDropdown(false)}
-  className="flex items-center gap-3 px-3 py-2.5 text-sm text-slate-700 dark:text-slate-300 hover:bg-slate-100 dark:hover:bg-slate-700/50 rounded-xl transition-colors"
->
-  <div className="w-8 h-8 bg-green-100 dark:bg-green-500/20 rounded-lg flex items-center justify-center">
-    <span className="text-lg">⏱️</span>
-  </div>
-  <div>
-    <p className="font-medium"> Time Sheet</p>
-    <p className="text-xs text-slate-500 dark:text-slate-400">Check your Punch-IN/OUT Details</p>
-  </div>
-</Link>
+        <Link
+          href="/leave"
+          onClick={() => setShowDropdown(false)}
+          className="flex items-center gap-3 px-3 py-2.5 text-sm text-slate-700 dark:text-slate-300 hover:bg-slate-100 dark:hover:bg-slate-700/50 rounded-xl transition-colors"
+        >
+          <div className="w-8 h-8 bg-green-100 dark:bg-green-500/20 rounded-lg flex items-center justify-center flex-shrink-0">
+            <span className="text-lg">🏖️</span>
+          </div>
+          <div className="min-w-0">
+            <p className="font-medium truncate">Leave</p>
+            <p className="text-xs text-slate-500 dark:text-slate-400 truncate">Apply & manage leaves</p>
+          </div>
+        </Link>
 
-<Link
-  href="/team"
-  onClick={() => setShowDropdown(false)}
-  className="flex items-center gap-3 px-3 py-2.5 text-sm text-slate-700 dark:text-slate-300 hover:bg-slate-100 dark:hover:bg-slate-700/50 rounded-xl transition-colors"
->
-  <div className="w-8 h-8 bg-green-100 dark:bg-green-500/20 rounded-lg flex items-center justify-center">
-    <span className="text-lg">👥</span>
-  </div>
-  <div>
-    <p className="font-medium"> Team Dashboard</p>
-    <p className="text-xs text-slate-500 dark:text-slate-400">Manage Your Team</p>
-  </div>
-</Link>
+        <Link
+          href="/timesheet"
+          onClick={() => setShowDropdown(false)}
+          className="flex items-center gap-3 px-3 py-2.5 text-sm text-slate-700 dark:text-slate-300 hover:bg-slate-100 dark:hover:bg-slate-700/50 rounded-xl transition-colors"
+        >
+          <div className="w-8 h-8 bg-green-100 dark:bg-green-500/20 rounded-lg flex items-center justify-center flex-shrink-0">
+            <span className="text-lg">⏱️</span>
+          </div>
+          <div className="min-w-0">
+            <p className="font-medium truncate">Time Sheet</p>
+            <p className="text-xs text-slate-500 dark:text-slate-400 truncate">Check your Punch-IN/OUT Details</p>
+          </div>
+        </Link>
 
+        <Link
+          href="/team"
+          onClick={() => setShowDropdown(false)}
+          className="flex items-center gap-3 px-3 py-2.5 text-sm text-slate-700 dark:text-slate-300 hover:bg-slate-100 dark:hover:bg-slate-700/50 rounded-xl transition-colors"
+        >
+          <div className="w-8 h-8 bg-green-100 dark:bg-green-500/20 rounded-lg flex items-center justify-center flex-shrink-0">
+            <span className="text-lg">👥</span>
+          </div>
+          <div className="min-w-0">
+            <p className="font-medium truncate">Team Dashboard</p>
+            <p className="text-xs text-slate-500 dark:text-slate-400 truncate">Manage Your Team</p>
+          </div>
+        </Link>
 
-<Link
-  href="/analytics"
-  onClick={() => setShowDropdown(false)}
-  className="flex items-center gap-3 px-3 py-2.5 text-sm text-slate-700 dark:text-slate-300 hover:bg-slate-100 dark:hover:bg-slate-700/50 rounded-xl transition-colors"
->
-  <div className="w-8 h-8 bg-green-100 dark:bg-green-500/20 rounded-lg flex items-center justify-center">
-    <span className="text-lg">📊</span>
-  </div>
-  <div>
-    <p className="font-medium"> Analytics</p>
-    <p className="text-xs text-slate-500 dark:text-slate-400">See the Analytics</p>
-  </div>
-</Link>
+        <Link
+          href="/analytics"
+          onClick={() => setShowDropdown(false)}
+          className="flex items-center gap-3 px-3 py-2.5 text-sm text-slate-700 dark:text-slate-300 hover:bg-slate-100 dark:hover:bg-slate-700/50 rounded-xl transition-colors"
+        >
+          <div className="w-8 h-8 bg-green-100 dark:bg-green-500/20 rounded-lg flex items-center justify-center flex-shrink-0">
+            <span className="text-lg">📊</span>
+          </div>
+          <div className="min-w-0">
+            <p className="font-medium truncate">Analytics</p>
+            <p className="text-xs text-slate-500 dark:text-slate-400 truncate">See the Analytics</p>
+          </div>
+        </Link>
 
+        <Link
+          href="/shifts"
+          onClick={() => setShowDropdown(false)}
+          className="flex items-center gap-3 px-3 py-2.5 text-sm text-slate-700 dark:text-slate-300 hover:bg-slate-100 dark:hover:bg-slate-700/50 rounded-xl transition-colors"
+        >
+          <div className="w-8 h-8 bg-green-100 dark:bg-green-500/20 rounded-lg flex items-center justify-center flex-shrink-0">
+            <span className="text-lg">🕐</span>
+          </div>
+          <div className="min-w-0">
+            <p className="font-medium truncate">Shifts</p>
+            <p className="text-xs text-slate-500 dark:text-slate-400 truncate">View shift schedules</p>
+          </div>
+        </Link>
 
-
-<Link
-  href="/shifts"
-  onClick={() => setShowDropdown(false)}
-  className="flex items-center gap-3 px-3 py-2.5 text-sm text-slate-700 dark:text-slate-300 hover:bg-slate-100 dark:hover:bg-slate-700/50 rounded-xl transition-colors"
->
-  <div className="w-8 h-8 bg-green-100 dark:bg-green-500/20 rounded-lg flex items-center justify-center">
-    <span className="text-lg">🕐</span>
-  </div>
-  <div>
-    <p className="font-medium"> Shifts</p>
-    <p className="text-xs text-slate-500 dark:text-slate-400">See the Analytics</p>
-  </div>
-</Link>
-
-<Link
-  href="/payroll"
-  onClick={() => setShowDropdown(false)}
-  className="flex items-center gap-3 px-3 py-2.5 text-sm text-slate-700 dark:text-slate-300 hover:bg-slate-100 dark:hover:bg-slate-700/50 rounded-xl transition-colors"
->
-  <div className="w-8 h-8 bg-green-100 dark:bg-green-500/20 rounded-lg flex items-center justify-center">
-    <span className="text-lg">💰</span>
-  </div>
-  <div>
-    <p className="font-medium"> Payroll</p>
-    <p className="text-xs text-slate-500 dark:text-slate-400">See the Payroll</p>
-  </div>
-</Link>
+        <Link
+          href="/payroll"
+          onClick={() => setShowDropdown(false)}
+          className="flex items-center gap-3 px-3 py-2.5 text-sm text-slate-700 dark:text-slate-300 hover:bg-slate-100 dark:hover:bg-slate-700/50 rounded-xl transition-colors"
+        >
+          <div className="w-8 h-8 bg-green-100 dark:bg-green-500/20 rounded-lg flex items-center justify-center flex-shrink-0">
+            <span className="text-lg">💰</span>
+          </div>
+          <div className="min-w-0">
+            <p className="font-medium truncate">Payroll</p>
+            <p className="text-xs text-slate-500 dark:text-slate-400 truncate">See the Payroll</p>
+          </div>
+        </Link>
 
         {/* Admin Dashboard - Only for HR/Admin */}
         {(user.role === 'hr' || user.role === 'admin') && (
@@ -261,14 +277,14 @@ export default function UserNav() {
             onClick={() => setShowDropdown(false)}
             className="flex items-center gap-3 px-3 py-2.5 text-sm text-slate-700 dark:text-slate-300 hover:bg-slate-100 dark:hover:bg-slate-700/50 rounded-xl transition-colors"
           >
-            <div className="w-8 h-8 bg-purple-100 dark:bg-purple-500/20 rounded-lg flex items-center justify-center">
+            <div className="w-8 h-8 bg-purple-100 dark:bg-purple-500/20 rounded-lg flex items-center justify-center flex-shrink-0">
               <svg className="w-4 h-4 text-purple-600 dark:text-purple-400" fill="none" stroke="currentColor" viewBox="0 0 24 24">
                 <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M9 19v-6a2 2 0 00-2-2H5a2 2 0 00-2 2v6a2 2 0 002 2h2a2 2 0 002-2zm0 0V9a2 2 0 012-2h2a2 2 0 012 2v10m-6 0a2 2 0 002 2h2a2 2 0 002-2m0 0V5a2 2 0 012-2h2a2 2 0 012 2v14a2 2 0 01-2 2h-2a2 2 0 01-2-2z" />
               </svg>
             </div>
-            <div>
-              <p className="font-medium">Admin Dashboard</p>
-              <p className="text-xs text-slate-500 dark:text-slate-400">Manage users & settings</p>
+            <div className="min-w-0">
+              <p className="font-medium truncate">Admin Dashboard</p>
+              <p className="text-xs text-slate-500 dark:text-slate-400 truncate">Manage users & settings</p>
             </div>
           </Link>
         )}
@@ -281,14 +297,14 @@ export default function UserNav() {
           onClick={handleSignOut}
           className="w-full flex items-center gap-3 px-3 py-2.5 text-sm text-red-600 dark:text-red-400 hover:bg-red-50 dark:hover:bg-red-500/10 rounded-xl transition-colors"
         >
-          <div className="w-8 h-8 bg-red-100 dark:bg-red-500/20 rounded-lg flex items-center justify-center">
+          <div className="w-8 h-8 bg-red-100 dark:bg-red-500/20 rounded-lg flex items-center justify-center flex-shrink-0">
             <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
               <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M17 16l4-4m0 0l-4-4m4 4H7m6 4v1a3 3 0 01-3 3H6a3 3 0 01-3-3V7a3 3 0 013-3h4a3 3 0 013 3v1" />
             </svg>
           </div>
-          <div className="text-left">
-            <p className="font-medium">Sign Out</p>
-            <p className="text-xs text-red-500/70 dark:text-red-400/70">Log out of your account</p>
+          <div className="text-left min-w-0">
+            <p className="font-medium truncate">Sign Out</p>
+            <p className="text-xs text-red-500/70 dark:text-red-400/70 truncate">Log out of your account</p>
           </div>
         </button>
       </div>
@@ -341,10 +357,9 @@ export default function UserNav() {
         </svg>
       </button>
 
-      {/* Portal for Dropdown - Renders at document body level */}
+      {/* Portal for Dropdown */}
       {mounted && showDropdown && createPortal(
         <>
-          {/* Backdrop */}
           <div 
             className="fixed inset-0" 
             style={{ zIndex: 99998 }}

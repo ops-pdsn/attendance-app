@@ -1,14 +1,51 @@
 'use client'
 
-import { useState } from 'react'
+import { useState, useEffect, useRef } from 'react'
+import { createPortal } from 'react-dom'
 
 export default function DateRangeFilter({ onFilter, onReset }) {
   const [startDate, setStartDate] = useState('')
   const [endDate, setEndDate] = useState('')
   const [isOpen, setIsOpen] = useState(false)
   const [activePreset, setActivePreset] = useState(null)
+  const [dropdownPosition, setDropdownPosition] = useState({ top: 0, right: 0, useFullWidth: false })
+  const [mounted, setMounted] = useState(false)
+  const buttonRef = useRef(null)
 
-  // Preset date ranges
+  useEffect(() => {
+    setMounted(true)
+  }, [])
+
+  useEffect(() => {
+    if (isOpen && buttonRef.current) {
+      const rect = buttonRef.current.getBoundingClientRect()
+      const isMobile = window.innerWidth < 640
+      
+      setDropdownPosition({
+        top: rect.bottom + 8,
+        right: isMobile ? 8 : Math.max(8, window.innerWidth - rect.right),
+        useFullWidth: isMobile
+      })
+    }
+  }, [isOpen])
+
+  useEffect(() => {
+    const handleResize = () => {
+      if (isOpen && buttonRef.current) {
+        const rect = buttonRef.current.getBoundingClientRect()
+        const isMobile = window.innerWidth < 640
+        setDropdownPosition({
+          top: rect.bottom + 8,
+          right: isMobile ? 8 : Math.max(8, window.innerWidth - rect.right),
+          useFullWidth: isMobile
+        })
+      }
+    }
+
+    window.addEventListener('resize', handleResize)
+    return () => window.removeEventListener('resize', handleResize)
+  }, [isOpen])
+
   const presets = [
     { 
       label: 'Today', 
@@ -124,10 +161,110 @@ export default function DateRangeFilter({ onFilter, onReset }) {
     return 'All Time'
   }
 
+  const DropdownMenu = () => (
+    <div 
+      className="fixed bg-white dark:bg-slate-800 border border-gray-200 dark:border-slate-700 rounded-xl shadow-xl overflow-hidden"
+      style={{
+        top: dropdownPosition.top,
+        right: dropdownPosition.right,
+        left: dropdownPosition.useFullWidth ? 8 : 'auto',
+        width: dropdownPosition.useFullWidth ? 'calc(100% - 16px)' : '288px',
+        maxWidth: dropdownPosition.useFullWidth ? '100%' : '288px',
+        zIndex: 99999,
+        animation: 'dropdownIn 0.2s ease-out'
+      }}
+    >
+      {/* Presets */}
+      <div className="p-2 border-b border-gray-200 dark:border-slate-700">
+        <p className="text-xs font-semibold text-gray-500 dark:text-slate-400 uppercase tracking-wider px-2 mb-2">
+          Quick Select
+        </p>
+        <div className="grid grid-cols-2 gap-1">
+          {presets.map((preset, index) => (
+            <button
+              key={preset.label}
+              onClick={() => handlePresetClick(preset, index)}
+              className={`px-3 py-1.5 text-sm rounded-lg transition-colors text-left ${
+                activePreset === index
+                  ? 'bg-blue-100 dark:bg-blue-900/50 text-blue-700 dark:text-blue-300 font-medium'
+                  : 'text-gray-700 dark:text-slate-300 hover:bg-gray-100 dark:hover:bg-slate-700'
+              }`}
+            >
+              {preset.label}
+            </button>
+          ))}
+        </div>
+      </div>
+
+      {/* Custom Range */}
+      <div className="p-3">
+        <p className="text-xs font-semibold text-gray-500 dark:text-slate-400 uppercase tracking-wider mb-2">
+          Custom Range
+        </p>
+        <div className="flex gap-2 mb-3">
+          <div className="flex-1">
+            <label className="block text-xs text-gray-500 dark:text-slate-400 mb-1">Start Date</label>
+            <input
+              type="date"
+              value={startDate}
+              onChange={(e) => {
+                setStartDate(e.target.value)
+                setActivePreset(null)
+              }}
+              className="w-full px-2 py-1.5 text-sm bg-gray-50 dark:bg-slate-900 border border-gray-300 dark:border-slate-600 rounded-lg focus:outline-none focus:ring-2 focus:ring-blue-500 dark:text-white"
+            />
+          </div>
+          <div className="flex-1">
+            <label className="block text-xs text-gray-500 dark:text-slate-400 mb-1">End Date</label>
+            <input
+              type="date"
+              value={endDate}
+              onChange={(e) => {
+                setEndDate(e.target.value)
+                setActivePreset(null)
+              }}
+              className="w-full px-2 py-1.5 text-sm bg-gray-50 dark:bg-slate-900 border border-gray-300 dark:border-slate-600 rounded-lg focus:outline-none focus:ring-2 focus:ring-blue-500 dark:text-white"
+            />
+          </div>
+        </div>
+
+        {/* Action Buttons */}
+        <div className="flex gap-2">
+          <button
+            onClick={handleReset}
+            className="flex-1 px-3 py-2 text-sm font-medium text-gray-700 dark:text-slate-300 bg-gray-100 dark:bg-slate-700 hover:bg-gray-200 dark:hover:bg-slate-600 rounded-lg transition-colors"
+          >
+            Reset
+          </button>
+          <button
+            onClick={handleApply}
+            disabled={!startDate || !endDate}
+            className="flex-1 px-3 py-2 text-sm font-medium text-white bg-blue-600 hover:bg-blue-700 rounded-lg transition-colors disabled:opacity-50 disabled:cursor-not-allowed"
+          >
+            Apply
+          </button>
+        </div>
+      </div>
+
+      <style jsx>{`
+        @keyframes dropdownIn {
+          from {
+            opacity: 0;
+            transform: translateY(-8px) scale(0.96);
+          }
+          to {
+            opacity: 1;
+            transform: translateY(0) scale(1);
+          }
+        }
+      `}</style>
+    </div>
+  )
+
   return (
-    <div className="relative">
-      {/* Trigger Button */}
+    <>
       <button
+        ref={buttonRef}
         onClick={() => setIsOpen(!isOpen)}
         className="flex items-center gap-2 px-3 sm:px-4 py-2 bg-white dark:bg-slate-800 border border-gray-300 dark:border-slate-600 rounded-lg hover:bg-gray-50 dark:hover:bg-slate-700 transition-colors text-sm font-medium text-gray-700 dark:text-slate-300"
       >
@@ -140,91 +277,17 @@ export default function DateRangeFilter({ onFilter, onReset }) {
         </svg>
       </button>
 
-      {/* Dropdown */}
-      {isOpen && (
+      {mounted && isOpen && createPortal(
         <>
-          {/* Backdrop */}
           <div 
-            className="fixed inset-0 z-10" 
+            className="fixed inset-0" 
+            style={{ zIndex: 99998 }}
             onClick={() => setIsOpen(false)}
-          ></div>
-          
-          {/* Menu */}
-          <div className="absolute right-0 mt-2 w-72 bg-white dark:bg-slate-800 border border-gray-200 dark:border-slate-700 rounded-xl shadow-xl z-20 overflow-hidden">
-            {/* Presets */}
-            <div className="p-2 border-b border-gray-200 dark:border-slate-700">
-              <p className="text-xs font-semibold text-gray-500 dark:text-slate-400 uppercase tracking-wider px-2 mb-2">
-                Quick Select
-              </p>
-              <div className="grid grid-cols-2 gap-1">
-                {presets.map((preset, index) => (
-                  <button
-                    key={preset.label}
-                    onClick={() => handlePresetClick(preset, index)}
-                    className={`px-3 py-1.5 text-sm rounded-lg transition-colors text-left ${
-                      activePreset === index
-                        ? 'bg-blue-100 dark:bg-blue-900/50 text-blue-700 dark:text-blue-300 font-medium'
-                        : 'text-gray-700 dark:text-slate-300 hover:bg-gray-100 dark:hover:bg-slate-700'
-                    }`}
-                  >
-                    {preset.label}
-                  </button>
-                ))}
-              </div>
-            </div>
-
-            {/* Custom Range */}
-            <div className="p-3">
-              <p className="text-xs font-semibold text-gray-500 dark:text-slate-400 uppercase tracking-wider mb-2">
-                Custom Range
-              </p>
-              <div className="flex gap-2 mb-3">
-                <div className="flex-1">
-                  <label className="block text-xs text-gray-500 dark:text-slate-400 mb-1">Start Date</label>
-                  <input
-                    type="date"
-                    value={startDate}
-                    onChange={(e) => {
-                      setStartDate(e.target.value)
-                      setActivePreset(null)
-                    }}
-                    className="w-full px-2 py-1.5 text-sm bg-gray-50 dark:bg-slate-900 border border-gray-300 dark:border-slate-600 rounded-lg focus:outline-none focus:ring-2 focus:ring-blue-500 dark:text-white"
-                  />
-                </div>
-                <div className="flex-1">
-                  <label className="block text-xs text-gray-500 dark:text-slate-400 mb-1">End Date</label>
-                  <input
-                    type="date"
-                    value={endDate}
-                    onChange={(e) => {
-                      setEndDate(e.target.value)
-                      setActivePreset(null)
-                    }}
-                    className="w-full px-2 py-1.5 text-sm bg-gray-50 dark:bg-slate-900 border border-gray-300 dark:border-slate-600 rounded-lg focus:outline-none focus:ring-2 focus:ring-blue-500 dark:text-white"
-                  />
-                </div>
-              </div>
-
-              {/* Action Buttons */}
-              <div className="flex gap-2">
-                <button
-                  onClick={handleReset}
-                  className="flex-1 px-3 py-2 text-sm font-medium text-gray-700 dark:text-slate-300 bg-gray-100 dark:bg-slate-700 hover:bg-gray-200 dark:hover:bg-slate-600 rounded-lg transition-colors"
-                >
-                  Reset
-                </button>
-                <button
-                  onClick={handleApply}
-                  disabled={!startDate || !endDate}
-                  className="flex-1 px-3 py-2 text-sm font-medium text-white bg-blue-600 hover:bg-blue-700 rounded-lg transition-colors disabled:opacity-50 disabled:cursor-not-allowed"
-                >
-                  Apply
-                </button>
-              </div>
-            </div>
-          </div>
-        </>
+          />
+          <DropdownMenu />
+        </>,
+        document.body
       )}
-    </div>
+    </>
   )
 }
