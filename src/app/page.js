@@ -68,27 +68,44 @@ export default function Home() {
     fetchData()
   }, [])
 
-  // Calculate dropdown positions
-  useEffect(() => {
-    if (showFilterDropdown && filterButtonRef.current) {
-      const rect = filterButtonRef.current.getBoundingClientRect()
-      setFilterPosition({ top: rect.bottom + 8, left: rect.left })
-    }
-  }, [showFilterDropdown])
+  // Calculate dropdown positions with mobile support
+useEffect(() => {
+  if (showFilterDropdown && filterButtonRef.current) {
+    const rect = filterButtonRef.current.getBoundingClientRect()
+    const isMobile = window.innerWidth < 640
+    setFilterPosition({ 
+      top: rect.bottom + 8, 
+      left: isMobile ? 8 : rect.left,
+      right: isMobile ? 8 : 'auto',
+      useFullWidth: isMobile
+    })
+  }
+}, [showFilterDropdown])
 
-  useEffect(() => {
-    if (showExportDropdown && exportButtonRef.current) {
-      const rect = exportButtonRef.current.getBoundingClientRect()
-      setExportPosition({ top: rect.bottom + 8, right: window.innerWidth - rect.right })
-    }
-  }, [showExportDropdown])
+useEffect(() => {
+  if (showExportDropdown && exportButtonRef.current) {
+    const rect = exportButtonRef.current.getBoundingClientRect()
+    const isMobile = window.innerWidth < 640
+    setExportPosition({ 
+      top: rect.bottom + 8, 
+      right: isMobile ? 8 : Math.max(8, window.innerWidth - rect.right),
+      useFullWidth: isMobile
+    })
+  }
+}, [showExportDropdown])
 
-  useEffect(() => {
-    if (showMoreDropdown && moreButtonRef.current) {
-      const rect = moreButtonRef.current.getBoundingClientRect()
-      setMorePosition({ top: rect.bottom + 8, right: window.innerWidth - rect.right })
-    }
-  }, [showMoreDropdown])
+useEffect(() => {
+  if (showMoreDropdown && moreButtonRef.current) {
+    const rect = moreButtonRef.current.getBoundingClientRect()
+    const isMobile = window.innerWidth < 640
+    setMorePosition({ 
+      top: rect.bottom + 8, 
+      right: isMobile ? 8 : Math.max(8, window.innerWidth - rect.right),
+      useFullWidth: isMobile
+    })
+  }
+}, [showMoreDropdown])
+
 
   // Close dropdowns on outside click
   useEffect(() => {
@@ -394,212 +411,223 @@ export default function Home() {
     return <DashboardSkeleton />
   }
 
-  // Filter Dropdown Component (Portal)
   const FilterDropdown = () => (
-    <div 
-      id="filter-dropdown"
-      className="fixed bg-white dark:bg-slate-800 rounded-2xl shadow-2xl border border-slate-200 dark:border-slate-700 w-72 overflow-hidden"
-      style={{
-        top: filterPosition.top,
-        left: Math.min(filterPosition.left, window.innerWidth - 300),
-        zIndex: 99999,
-        animation: 'dropdownIn 0.2s ease-out'
-      }}
-    >
-      <div className="p-3 border-b border-slate-200 dark:border-slate-700">
-        <h3 className="font-semibold text-slate-900 dark:text-white text-sm">Filter by Date</h3>
+  <div 
+    id="filter-dropdown"
+    className="fixed bg-white dark:bg-slate-800 rounded-2xl shadow-2xl border border-slate-200 dark:border-slate-700 overflow-hidden max-h-[80vh] overflow-y-auto"
+    style={{
+      top: filterPosition.top,
+      left: filterPosition.useFullWidth ? 8 : filterPosition.left,
+      right: filterPosition.useFullWidth ? 8 : 'auto',
+      width: filterPosition.useFullWidth ? 'calc(100% - 16px)' : '288px',
+      maxWidth: filterPosition.useFullWidth ? '100%' : '288px',
+      zIndex: 99999,
+      animation: 'dropdownIn 0.2s ease-out'
+    }}
+  >
+    <div className="p-3 border-b border-slate-200 dark:border-slate-700">
+      <h3 className="font-semibold text-slate-900 dark:text-white text-sm">Filter by Date</h3>
+    </div>
+    
+    {/* Quick Filters */}
+    <div className="p-2 border-b border-slate-200 dark:border-slate-700">
+      <div className="grid grid-cols-2 gap-1">
+        {[
+          { key: 'today', label: 'Today' },
+          { key: 'yesterday', label: 'Yesterday' },
+          { key: 'last7', label: 'Last 7 Days' },
+          { key: 'last30', label: 'Last 30 Days' },
+          { key: 'thisMonth', label: 'This Month' },
+          { key: 'lastMonth', label: 'Last Month' },
+        ].map(item => (
+          <button
+            key={item.key}
+            onClick={() => applyQuickFilter(item.key)}
+            className="px-3 py-2 text-xs font-medium text-slate-700 dark:text-slate-300 hover:bg-slate-100 dark:hover:bg-slate-700 rounded-lg transition-colors text-left"
+          >
+            {item.label}
+          </button>
+        ))}
       </div>
-      
-      {/* Quick Filters */}
-      <div className="p-2 border-b border-slate-200 dark:border-slate-700">
-        <div className="grid grid-cols-2 gap-1">
-          {[
-            { key: 'today', label: 'Today' },
-            { key: 'yesterday', label: 'Yesterday' },
-            { key: 'last7', label: 'Last 7 Days' },
-            { key: 'last30', label: 'Last 30 Days' },
-            { key: 'thisMonth', label: 'This Month' },
-            { key: 'lastMonth', label: 'Last Month' },
-          ].map(item => (
-            <button
-              key={item.key}
-              onClick={() => applyQuickFilter(item.key)}
-              className="px-3 py-2 text-xs font-medium text-slate-700 dark:text-slate-300 hover:bg-slate-100 dark:hover:bg-slate-700 rounded-lg transition-colors text-left"
-            >
-              {item.label}
-            </button>
-          ))}
-        </div>
+    </div>
+    
+    {/* Custom Range */}
+    <div className="p-3 space-y-2">
+      <p className="text-xs font-medium text-slate-500 dark:text-slate-400">Custom Range</p>
+      <div className="flex gap-2">
+        <input
+          type="date"
+          value={customStart}
+          onChange={(e) => setCustomStart(e.target.value)}
+          className="flex-1 px-2 py-1.5 text-xs bg-slate-100 dark:bg-slate-700 border-0 rounded-lg text-slate-900 dark:text-white"
+        />
+        <input
+          type="date"
+          value={customEnd}
+          onChange={(e) => setCustomEnd(e.target.value)}
+          className="flex-1 px-2 py-1.5 text-xs bg-slate-100 dark:bg-slate-700 border-0 rounded-lg text-slate-900 dark:text-white"
+        />
       </div>
-      
-      {/* Custom Range */}
-      <div className="p-3 space-y-2">
-        <p className="text-xs font-medium text-slate-500 dark:text-slate-400">Custom Range</p>
-        <div className="flex gap-2">
-          <input
-            type="date"
-            value={customStart}
-            onChange={(e) => setCustomStart(e.target.value)}
-            className="flex-1 px-2 py-1.5 text-xs bg-slate-100 dark:bg-slate-700 border-0 rounded-lg text-slate-900 dark:text-white"
-          />
-          <input
-            type="date"
-            value={customEnd}
-            onChange={(e) => setCustomEnd(e.target.value)}
-            className="flex-1 px-2 py-1.5 text-xs bg-slate-100 dark:bg-slate-700 border-0 rounded-lg text-slate-900 dark:text-white"
-          />
-        </div>
+      <button
+        onClick={applyCustomFilter}
+        className="w-full px-3 py-2 text-xs font-medium bg-blue-500 text-white rounded-lg hover:bg-blue-600 transition-colors"
+      >
+        Apply Custom Range
+      </button>
+    </div>
+    
+    {/* Clear Filter */}
+    {(dateFilter.start || dateFilter.end) && (
+      <div className="p-2 border-t border-slate-200 dark:border-slate-700">
         <button
-          onClick={applyCustomFilter}
-          className="w-full px-3 py-2 text-xs font-medium bg-blue-500 text-white rounded-lg hover:bg-blue-600 transition-colors"
+          onClick={clearFilter}
+          className="w-full px-3 py-2 text-xs font-medium text-red-500 hover:bg-red-50 dark:hover:bg-red-500/10 rounded-lg transition-colors"
         >
-          Apply Custom Range
+          Clear Filter
         </button>
       </div>
-      
-      {/* Clear Filter */}
-      {(dateFilter.start || dateFilter.end) && (
-        <div className="p-2 border-t border-slate-200 dark:border-slate-700">
-          <button
-            onClick={clearFilter}
-            className="w-full px-3 py-2 text-xs font-medium text-red-500 hover:bg-red-50 dark:hover:bg-red-500/10 rounded-lg transition-colors"
-          >
-            Clear Filter
-          </button>
-        </div>
-      )}
-    </div>
-  )
+    )}
+  </div>
+)
+
 
   // Export Dropdown Component (Portal)
   const ExportDropdown = () => (
-    <div 
-      id="export-dropdown"
-      className="fixed bg-white dark:bg-slate-800 rounded-2xl shadow-2xl border border-slate-200 dark:border-slate-700 w-56 overflow-hidden"
-      style={{
-        top: exportPosition.top,
-        right: exportPosition.right,
-        zIndex: 99999,
-        animation: 'dropdownIn 0.2s ease-out'
-      }}
-    >
-      <div className="p-2">
-        <button
-          onClick={handleExportTasks}
-          className="w-full flex items-center gap-3 px-3 py-2.5 text-sm text-slate-700 dark:text-slate-300 hover:bg-slate-100 dark:hover:bg-slate-700 rounded-xl transition-colors"
-        >
-          <div className="w-8 h-8 bg-purple-100 dark:bg-purple-500/20 rounded-lg flex items-center justify-center">
-            <span className="text-lg">📋</span>
-          </div>
-          <div className="text-left">
-            <p className="font-medium">Export Tasks</p>
-            <p className="text-xs text-slate-500">{filteredTasks.length} tasks</p>
-          </div>
-        </button>
-        
-        <button
-          onClick={handleExportAttendance}
-          className="w-full flex items-center gap-3 px-3 py-2.5 text-sm text-slate-700 dark:text-slate-300 hover:bg-slate-100 dark:hover:bg-slate-700 rounded-xl transition-colors"
-        >
-          <div className="w-8 h-8 bg-green-100 dark:bg-green-500/20 rounded-lg flex items-center justify-center">
-            <span className="text-lg">📅</span>
-          </div>
-          <div className="text-left">
-            <p className="font-medium">Export Attendance</p>
-            <p className="text-xs text-slate-500">{filteredAttendance.length} records</p>
-          </div>
-        </button>
-      </div>
+  <div 
+    id="export-dropdown"
+    className="fixed bg-white dark:bg-slate-800 rounded-2xl shadow-2xl border border-slate-200 dark:border-slate-700 overflow-hidden"
+    style={{
+      top: exportPosition.top,
+      right: exportPosition.right,
+      left: exportPosition.useFullWidth ? 8 : 'auto',
+      width: exportPosition.useFullWidth ? 'calc(100% - 16px)' : '224px',
+      maxWidth: exportPosition.useFullWidth ? '100%' : '224px',
+      zIndex: 99999,
+      animation: 'dropdownIn 0.2s ease-out'
+    }}
+  >
+    <div className="p-2">
+      <button
+        onClick={handleExportTasks}
+        className="w-full flex items-center gap-3 px-3 py-2.5 text-sm text-slate-700 dark:text-slate-300 hover:bg-slate-100 dark:hover:bg-slate-700 rounded-xl transition-colors"
+      >
+        <div className="w-8 h-8 bg-purple-100 dark:bg-purple-500/20 rounded-lg flex items-center justify-center flex-shrink-0">
+          <span className="text-lg">📋</span>
+        </div>
+        <div className="text-left min-w-0">
+          <p className="font-medium truncate">Export Tasks</p>
+          <p className="text-xs text-slate-500 truncate">{filteredTasks.length} tasks</p>
+        </div>
+      </button>
+      
+      <button
+        onClick={handleExportAttendance}
+        className="w-full flex items-center gap-3 px-3 py-2.5 text-sm text-slate-700 dark:text-slate-300 hover:bg-slate-100 dark:hover:bg-slate-700 rounded-xl transition-colors"
+      >
+        <div className="w-8 h-8 bg-green-100 dark:bg-green-500/20 rounded-lg flex items-center justify-center flex-shrink-0">
+          <span className="text-lg">📅</span>
+        </div>
+        <div className="text-left min-w-0">
+          <p className="font-medium truncate">Export Attendance</p>
+          <p className="text-xs text-slate-500 truncate">{filteredAttendance.length} records</p>
+        </div>
+      </button>
     </div>
-  )
+  </div>
+)
 
-  // More Menu Dropdown Component (Portal)
+
   const MoreDropdown = () => (
-    <div 
-      id="more-dropdown"
-      className="fixed bg-white dark:bg-slate-800 rounded-2xl shadow-2xl border border-slate-200 dark:border-slate-700 w-64 overflow-hidden"
-      style={{
-        top: morePosition.top,
-        right: morePosition.right,
-        zIndex: 99999,
-        animation: 'dropdownIn 0.2s ease-out'
-      }}
-    >
-      <div className="p-2">
-        <button
-          onClick={() => { setShowOrgTree(true); setShowMoreDropdown(false) }}
-          className="w-full flex items-center gap-3 px-3 py-2.5 text-sm text-slate-700 dark:text-slate-300 hover:bg-slate-100 dark:hover:bg-slate-700 rounded-xl transition-colors"
-        >
-          <div className="w-8 h-8 bg-indigo-100 dark:bg-indigo-500/20 rounded-lg flex items-center justify-center">
-            <svg className="w-4 h-4 text-indigo-600 dark:text-indigo-400" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-              <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M19 21V5a2 2 0 00-2-2H7a2 2 0 00-2 2v16m14 0h2m-2 0h-5m-9 0H3m2 0h5M9 7h1m-1 4h1m4-4h1m-1 4h1m-5 10v-5a1 1 0 011-1h2a1 1 0 011 1v5m-4 0h4" />
-            </svg>
-          </div>
-          <div className="text-left">
-            <p className="font-medium">Organization Tree</p>
-            <p className="text-xs text-slate-500">View team hierarchy</p>
-          </div>
-        </button>
-        <button
-  onClick={() => { setShowReportGenerator(true); setShowMoreDropdown(false) }}
-  className="w-full flex items-center gap-3 px-3 py-2.5 text-sm text-slate-700 dark:text-slate-300 hover:bg-slate-100 dark:hover:bg-slate-700 rounded-xl transition-colors"
->
-  <div className="w-8 h-8 bg-orange-100 dark:bg-orange-500/20 rounded-lg flex items-center justify-center">
-    <svg className="w-4 h-4 text-orange-600 dark:text-orange-400" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-      <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M12 10v6m0 0l-3-3m3 3l3-3m2 8H7a2 2 0 01-2-2V5a2 2 0 012-2h5.586a1 1 0 01.707.293l5.414 5.414a1 1 0 01.293.707V19a2 2 0 01-2 2z" />
-    </svg>
-  </div>
-  <div className="text-left">
-    <p className="font-medium">PDF Reports</p>
-    <p className="text-xs text-slate-500 dark:text-slate-400">Generate & download</p>
-  </div>
-</button>
-        
-        <button
-          onClick={() => { setShowBackupRestore(true); setShowMoreDropdown(false) }}
-          className="w-full flex items-center gap-3 px-3 py-2.5 text-sm text-slate-700 dark:text-slate-300 hover:bg-slate-100 dark:hover:bg-slate-700 rounded-xl transition-colors"
-        >
-          <div className="w-8 h-8 bg-emerald-100 dark:bg-emerald-500/20 rounded-lg flex items-center justify-center">
-            <svg className="w-4 h-4 text-emerald-600 dark:text-emerald-400" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-              <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M4 16v1a3 3 0 003 3h10a3 3 0 003-3v-1m-4-8l-4-4m0 0L8 8m4-4v12" />
-            </svg>
-          </div>
-          <div className="text-left">
-            <p className="font-medium">Backup & Restore</p>
-            <p className="text-xs text-slate-500">Export or import data</p>
-          </div>
-        </button>
+  <div 
+    id="more-dropdown"
+    className="fixed bg-white dark:bg-slate-800 rounded-2xl shadow-2xl border border-slate-200 dark:border-slate-700 overflow-hidden max-h-[70vh] overflow-y-auto"
+    style={{
+      top: morePosition.top,
+      right: morePosition.right,
+      left: morePosition.useFullWidth ? 8 : 'auto',
+      width: morePosition.useFullWidth ? 'calc(100% - 16px)' : '256px',
+      maxWidth: morePosition.useFullWidth ? '100%' : '256px',
+      zIndex: 99999,
+      animation: 'dropdownIn 0.2s ease-out'
+    }}
+  >
+    <div className="p-2">
+      <button
+        onClick={() => { setShowOrgTree(true); setShowMoreDropdown(false) }}
+        className="w-full flex items-center gap-3 px-3 py-2.5 text-sm text-slate-700 dark:text-slate-300 hover:bg-slate-100 dark:hover:bg-slate-700 rounded-xl transition-colors"
+      >
+        <div className="w-8 h-8 bg-indigo-100 dark:bg-indigo-500/20 rounded-lg flex items-center justify-center flex-shrink-0">
+          <svg className="w-4 h-4 text-indigo-600 dark:text-indigo-400" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+            <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M19 21V5a2 2 0 00-2-2H7a2 2 0 00-2 2v16m14 0h2m-2 0h-5m-9 0H3m2 0h5M9 7h1m-1 4h1m4-4h1m-1 4h1m-5 10v-5a1 1 0 011-1h2a1 1 0 011 1v5m-4 0h4" />
+          </svg>
+        </div>
+        <div className="text-left min-w-0">
+          <p className="font-medium truncate">Organization Tree</p>
+          <p className="text-xs text-slate-500 truncate">View team hierarchy</p>
+        </div>
+      </button>
 
-        <div className="my-2 border-t border-slate-200 dark:border-slate-700"></div>
-        
-        <button
-          onClick={() => { setShowHolidayManager(true); setShowMoreDropdown(false) }}
-          className="w-full flex items-center gap-3 px-3 py-2.5 text-sm text-slate-700 dark:text-slate-300 hover:bg-slate-100 dark:hover:bg-slate-700 rounded-xl transition-colors"
-        >
-          <div className="w-8 h-8 bg-orange-100 dark:bg-orange-500/20 rounded-lg flex items-center justify-center">
-            <span className="text-lg">🎉</span>
-          </div>
-          <div className="text-left">
-            <p className="font-medium">Manage Holidays</p>
-            <p className="text-xs text-slate-500">{holidays.length} holidays</p>
-          </div>
-        </button>
-        
-        <button
-          onClick={() => { setShowCharts(!showCharts); setShowMoreDropdown(false) }}
-          className="w-full flex items-center gap-3 px-3 py-2.5 text-sm text-slate-700 dark:text-slate-300 hover:bg-slate-100 dark:hover:bg-slate-700 rounded-xl transition-colors"
-        >
-          <div className={`w-8 h-8 rounded-lg flex items-center justify-center ${showCharts ? 'bg-violet-500 text-white' : 'bg-violet-100 dark:bg-violet-500/20'}`}>
-            <span className="text-lg">📊</span>
-          </div>
-          <div className="text-left">
-            <p className="font-medium">{showCharts ? 'Hide Charts' : 'Show Charts'}</p>
-            <p className="text-xs text-slate-500">Analytics & insights</p>
-          </div>
-        </button>
-      </div>
+      <button
+        onClick={() => { setShowReportGenerator(true); setShowMoreDropdown(false) }}
+        className="w-full flex items-center gap-3 px-3 py-2.5 text-sm text-slate-700 dark:text-slate-300 hover:bg-slate-100 dark:hover:bg-slate-700 rounded-xl transition-colors"
+      >
+        <div className="w-8 h-8 bg-orange-100 dark:bg-orange-500/20 rounded-lg flex items-center justify-center flex-shrink-0">
+          <svg className="w-4 h-4 text-orange-600 dark:text-orange-400" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+            <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M12 10v6m0 0l-3-3m3 3l3-3m2 8H7a2 2 0 01-2-2V5a2 2 0 012-2h5.586a1 1 0 01.707.293l5.414 5.414a1 1 0 01.293.707V19a2 2 0 01-2 2z" />
+          </svg>
+        </div>
+        <div className="text-left min-w-0">
+          <p className="font-medium truncate">PDF Reports</p>
+          <p className="text-xs text-slate-500 dark:text-slate-400 truncate">Generate & download</p>
+        </div>
+      </button>
+      
+      <button
+        onClick={() => { setShowBackupRestore(true); setShowMoreDropdown(false) }}
+        className="w-full flex items-center gap-3 px-3 py-2.5 text-sm text-slate-700 dark:text-slate-300 hover:bg-slate-100 dark:hover:bg-slate-700 rounded-xl transition-colors"
+      >
+        <div className="w-8 h-8 bg-emerald-100 dark:bg-emerald-500/20 rounded-lg flex items-center justify-center flex-shrink-0">
+          <svg className="w-4 h-4 text-emerald-600 dark:text-emerald-400" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+            <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M4 16v1a3 3 0 003 3h10a3 3 0 003-3v-1m-4-8l-4-4m0 0L8 8m4-4v12" />
+          </svg>
+        </div>
+        <div className="text-left min-w-0">
+          <p className="font-medium truncate">Backup & Restore</p>
+          <p className="text-xs text-slate-500 truncate">Export or import data</p>
+        </div>
+      </button>
+
+      <div className="my-2 border-t border-slate-200 dark:border-slate-700"></div>
+      
+      <button
+        onClick={() => { setShowHolidayManager(true); setShowMoreDropdown(false) }}
+        className="w-full flex items-center gap-3 px-3 py-2.5 text-sm text-slate-700 dark:text-slate-300 hover:bg-slate-100 dark:hover:bg-slate-700 rounded-xl transition-colors"
+      >
+        <div className="w-8 h-8 bg-orange-100 dark:bg-orange-500/20 rounded-lg flex items-center justify-center flex-shrink-0">
+          <span className="text-lg">🎉</span>
+        </div>
+        <div className="text-left min-w-0">
+          <p className="font-medium truncate">Manage Holidays</p>
+          <p className="text-xs text-slate-500 truncate">{holidays.length} holidays</p>
+        </div>
+      </button>
+      
+      <button
+        onClick={() => { setShowCharts(!showCharts); setShowMoreDropdown(false) }}
+        className="w-full flex items-center gap-3 px-3 py-2.5 text-sm text-slate-700 dark:text-slate-300 hover:bg-slate-100 dark:hover:bg-slate-700 rounded-xl transition-colors"
+      >
+        <div className={`w-8 h-8 rounded-lg flex items-center justify-center flex-shrink-0 ${showCharts ? 'bg-violet-500 text-white' : 'bg-violet-100 dark:bg-violet-500/20'}`}>
+          <span className="text-lg">📊</span>
+        </div>
+        <div className="text-left min-w-0">
+          <p className="font-medium truncate">{showCharts ? 'Hide Charts' : 'Show Charts'}</p>
+          <p className="text-xs text-slate-500 truncate">Analytics & insights</p>
+        </div>
+      </button>
     </div>
-  )
+  </div>
+)
+
   
   return (
     <div className="min-h-screen bg-gradient-to-br from-slate-50 to-slate-100 dark:from-slate-900 dark:via-slate-800 dark:to-slate-900 transition-colors duration-300">
