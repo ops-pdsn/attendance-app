@@ -1,573 +1,768 @@
 'use client'
 
-
-
-
-import { useState, useEffect, useCallback } from 'react'
+import { useState, useEffect } from 'react'
 import { useSession } from 'next-auth/react'
 import { useRouter } from 'next/navigation'
 import Link from 'next/link'
-import DateRangeFilter from '@/components/DateRangeFilter'
-import AdminCharts from '@/components/AdminCharts'
-import DepartmentManager from '@/components/DepartmentManager'
-import BulkActions from '@/components/BulkActions'
-import { exportUsers } from '@/lib/exportCSV'
+import DarkModeToggle from '@/components/DarkModeToggle'
+import UserNav from '@/components/UserNav'
+import NotificationBell from '@/components/NotificationBell'
+import { useToast } from '@/components/Toast'
+import { useConfirm } from '@/components/ConfirmDialog'
+
+export const dynamic = 'force-dynamic'
 
 export default function AdminDashboard() {
   const { data: session, status } = useSession()
   const router = useRouter()
-  const [stats, setStats] = useState(null)
-  const [users, setUsers] = useState([])
-  const [departments, setDepartments] = useState([])
+  const toast = useToast()
+  const { confirm } = useConfirm()
+
   const [loading, setLoading] = useState(true)
-  const [error, setError] = useState('')
-  const [hasFetched, setHasFetched] = useState(false)
-  const [searchTerm, setSearchTerm] = useState('')
-  const [filterRole, setFilterRole] = useState('')
-  const [dateFilter, setDateFilter] = useState({ start: null, end: null })
-  const [showDepartmentManager, setShowDepartmentManager] = useState(false)
-  const [selectedUsers, setSelectedUsers] = useState([])
+  const [activeTab, setActiveTab] = useState('users')
+  const [users, setUsers] = useState([])
+  const [leaveTypes, setLeaveTypes] = useState([])
+  const [stats, setStats] = useState({})
+  const [showUserModal, setShowUserModal] = useState(false)
+  const [showLeaveTypeModal, setShowLeaveTypeModal] = useState(false)
+  const [editingUser, setEditingUser] = useState(null)
+  const [editingLeaveType, setEditingLeaveType] = useState(null)
+  const [searchQuery, setSearchQuery] = useState('')
 
-  const fetchData = useCallback(async () => {
-    if (hasFetched) return
-    
-    try {
-      setLoading(true)
-      setHasFetched(true)
-      
-      // Build stats URL with date filter
-      let statsUrl = '/api/admin/stats'
-      if (dateFilter.start && dateFilter.end) {
-        statsUrl += `?startDate=${dateFilter.start}&endDate=${dateFilter.end}`
-      }
-      
-      const [usersRes, statsRes, deptsRes] = await Promise.all([
-        fetch('/api/admin/users'),
-        fetch(statsUrl),
-        fetch('/api/departments')
-      ])
-      
-      if (!usersRes.ok || !statsRes.ok) {
-        throw new Error('Failed to fetch data')
-      }
-      
-      const usersData = await usersRes.json()
-      const statsData = await statsRes.json()
-      const deptsData = deptsRes.ok ? await deptsRes.json() : []
-      
-      setUsers(usersData)
-      setStats(statsData)
-      setDepartments(deptsData)
-      setSelectedUsers([]) // Clear selection on refresh
-      setLoading(false)
-    } catch (err) {
-      console.error('Fetch error:', err)
-      setError(err.message)
-      setLoading(false)
-    }
-  }, [hasFetched, dateFilter])
-
-  useEffect(() => {
-    if (status === 'loading') return
-    
-    if (status === 'unauthenticated') {
-      router.push('/login')
-      return
-    }
-    
-    if (session?.user?.role !== 'admin' && session?.user?.role !== 'hr') {
-      router.push('/')
-      return
-    }
-    
-    if (!hasFetched) {
-      fetchData()
-    }
-  }, [status, session, router, hasFetched, fetchData])
-
-  // Date filter handlers
-  const handleDateFilter = (start, end) => {
-    setDateFilter({ start, end })
-    setHasFetched(false)
-  }
-
-  const handleDateReset = () => {
-    setDateFilter({ start: null, end: null })
-    setHasFetched(false)
-  }
-
-  // Selection handlers
-  const handleSelectUser = (userId) => {
-    setSelectedUsers(prev => {
-      if (prev.includes(userId)) {
-        return prev.filter(id => id !== userId)
-      }
-      return [...prev, userId]
-    })
-  }
-
-  const handleSelectAll = () => {
-    const selectableUsers = filteredUsers.filter(u => u.id !== session?.user?.id)
-    if (selectedUsers.length === selectableUsers.length) {
-      setSelectedUsers([])
-    } else {
-      setSelectedUsers(selectableUsers.map(u => u.id))
-    }
-  }
-
-  const handleClearSelection = () => {
-    setSelectedUsers([])
-  }
-
-  // Filter users based on search and role
-  const filteredUsers = users.filter(user => {
-    const matchesSearch = !searchTerm || 
-      user.name?.toLowerCase().includes(searchTerm.toLowerCase()) ||
-      user.email?.toLowerCase().includes(searchTerm.toLowerCase()) ||
-      user.employeeId?.toLowerCase().includes(searchTerm.toLowerCase())
-    
-    const matchesRole = !filterRole || user.role === filterRole
-    
-    return matchesSearch && matchesRole
+  // User form state
+  const [userForm, setUserForm] = useState({
+    name: '',
+    email: '',
+    role: 'employee',
+    department: '',
+    employeeId: '',
+    phone: ''
   })
 
-  // Get initials from name
-  const getInitials = (name) => {
-    return name
-      ?.split(' ')
-      .map(n => n[0])
-      .join('')
-      .toUpperCase()
-      .slice(0, 2) || '??'
+  // Leave type form state
+  const [leaveTypeForm, setLeaveTypeForm] = useState({
+    name: '',
+    code: '',
+    color: '#3b82f6',
+    defaultDays: 12,
+    isPaid: true,
+    carryForward: false
+  })
+
+  useEffect(() => {
+    if (status === 'unauthenticated') {
+      router.push('/login')
+    } else if (status === 'authenticated') {
+      if (!['admin', 'hr'].includes(session.user.role)) {
+        toast.error('Access denied. Admin/HR role required.')
+        router.push('/')
+        return
+      }
+      fetchData()
+    }
+  }, [status, router, session])
+
+  const fetchData = async () => {
+    try {
+      const [usersRes, leaveTypesRes, statsRes] = await Promise.all([
+        fetch('/api/users'),
+        fetch('/api/leave/types'),
+        fetch('/api/admin/stats')
+      ])
+
+      if (usersRes.ok) setUsers(await usersRes.json())
+      if (leaveTypesRes.ok) setLeaveTypes(await leaveTypesRes.json())
+      if (statsRes.ok) {
+        setStats(await statsRes.json())
+      } else {
+        // Mock stats if API doesn't exist
+        setStats({
+          totalUsers: 0,
+          activeToday: 0,
+          pendingLeaves: 0,
+          totalLeaveTypes: 0
+        })
+      }
+    } catch (error) {
+      console.error('Error fetching data:', error)
+      toast.error('Failed to load data')
+    } finally {
+      setLoading(false)
+    }
   }
 
-  // Get avatar gradient based on name
-  const getAvatarGradient = (name) => {
-    const gradients = [
-      'from-blue-500 to-indigo-600',
-      'from-emerald-500 to-teal-600',
-      'from-orange-500 to-red-600',
-      'from-purple-500 to-pink-600',
-      'from-cyan-500 to-blue-600',
-      'from-amber-500 to-orange-600',
-    ]
-    const index = name?.charCodeAt(0) % gradients.length || 0
-    return gradients[index]
+  const handleSaveUser = async (e) => {
+    e.preventDefault()
+    try {
+      const url = editingUser ? `/api/users/${editingUser.id}` : '/api/users'
+      const method = editingUser ? 'PATCH' : 'POST'
+
+      const res = await fetch(url, {
+        method,
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify(userForm)
+      })
+
+      if (res.ok) {
+        toast.success(editingUser ? 'User updated!' : 'User created!')
+        setShowUserModal(false)
+        resetUserForm()
+        fetchData()
+      } else {
+        const data = await res.json()
+        toast.error(data.error || 'Failed to save user')
+      }
+    } catch (error) {
+      toast.error('Error saving user')
+    }
   }
 
-  if (status === 'loading') {
+  const handleDeleteUser = async (userId) => {
+    const confirmed = await confirm({
+      title: 'Delete User',
+      message: 'Are you sure you want to delete this user? This action cannot be undone.',
+      confirmText: 'Delete',
+      type: 'danger'
+    })
+
+    if (!confirmed) return
+
+    try {
+      const res = await fetch(`/api/users/${userId}`, { method: 'DELETE' })
+      if (res.ok) {
+        toast.success('User deleted')
+        fetchData()
+      } else {
+        toast.error('Failed to delete user')
+      }
+    } catch (error) {
+      toast.error('Error deleting user')
+    }
+  }
+
+  const handleSaveLeaveType = async (e) => {
+    e.preventDefault()
+    try {
+      const url = editingLeaveType ? `/api/leave/types/${editingLeaveType.id}` : '/api/leave/types'
+      const method = editingLeaveType ? 'PATCH' : 'POST'
+
+      const res = await fetch(url, {
+        method,
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify(leaveTypeForm)
+      })
+
+      if (res.ok) {
+        toast.success(editingLeaveType ? 'Leave type updated!' : 'Leave type created!')
+        setShowLeaveTypeModal(false)
+        resetLeaveTypeForm()
+        fetchData()
+      } else {
+        const data = await res.json()
+        toast.error(data.error || 'Failed to save leave type')
+      }
+    } catch (error) {
+      toast.error('Error saving leave type')
+    }
+  }
+
+  const resetUserForm = () => {
+    setUserForm({
+      name: '',
+      email: '',
+      role: 'employee',
+      department: '',
+      employeeId: '',
+      phone: ''
+    })
+    setEditingUser(null)
+  }
+
+  const resetLeaveTypeForm = () => {
+    setLeaveTypeForm({
+      name: '',
+      code: '',
+      color: '#3b82f6',
+      defaultDays: 12,
+      isPaid: true,
+      carryForward: false
+    })
+    setEditingLeaveType(null)
+  }
+
+  const openEditUser = (user) => {
+    setUserForm({
+      name: user.name || '',
+      email: user.email || '',
+      role: user.role || 'employee',
+      department: user.department || '',
+      employeeId: user.employeeId || '',
+      phone: user.phone || ''
+    })
+    setEditingUser(user)
+    setShowUserModal(true)
+  }
+
+  const openEditLeaveType = (leaveType) => {
+    setLeaveTypeForm({
+      name: leaveType.name || '',
+      code: leaveType.code || '',
+      color: leaveType.color || '#3b82f6',
+      defaultDays: leaveType.defaultDays || 12,
+      isPaid: leaveType.isPaid ?? true,
+      carryForward: leaveType.carryForward ?? false
+    })
+    setEditingLeaveType(leaveType)
+    setShowLeaveTypeModal(true)
+  }
+
+  const filteredUsers = users.filter(user =>
+    user.name?.toLowerCase().includes(searchQuery.toLowerCase()) ||
+    user.email?.toLowerCase().includes(searchQuery.toLowerCase()) ||
+    user.department?.toLowerCase().includes(searchQuery.toLowerCase())
+  )
+
+  const tabs = [
+    { key: 'users', label: 'Users', icon: '👥', count: users.length },
+    { key: 'leaveTypes', label: 'Leave Types', icon: '🏖️', count: leaveTypes.length },
+    { key: 'settings', label: 'Settings', icon: '⚙️' }
+  ]
+
+  const getRoleColor = (role) => {
+    switch (role) {
+      case 'admin': return 'bg-red-100 text-red-700 dark:bg-red-900/30 dark:text-red-400'
+      case 'hr': return 'bg-purple-100 text-purple-700 dark:bg-purple-900/30 dark:text-purple-400'
+      case 'manager': return 'bg-amber-100 text-amber-700 dark:bg-amber-900/30 dark:text-amber-400'
+      default: return 'bg-blue-100 text-blue-700 dark:bg-blue-900/30 dark:text-blue-400'
+    }
+  }
+
+  if (status === 'loading' || loading) {
     return (
-      <div className="min-h-screen bg-gradient-to-br from-slate-900 via-slate-800 to-slate-900 flex items-center justify-center">
-        <div className="text-center">
-          <div className="w-16 h-16 border-4 border-blue-500 border-t-transparent rounded-full animate-spin mx-auto mb-4"></div>
-          <p className="text-slate-400">Checking authentication...</p>
-        </div>
+      <div className="min-h-screen bg-gradient-to-br from-slate-50 to-slate-100 dark:from-slate-900 dark:to-slate-800 flex items-center justify-center">
+        <div className="w-8 h-8 border-4 border-blue-500 border-t-transparent rounded-full animate-spin"></div>
       </div>
     )
   }
 
   return (
-    <div className="min-h-screen bg-gradient-to-br from-slate-900 via-slate-800 to-slate-900">
-      {/* Decorative Background Elements */}
+    <div className="min-h-screen bg-gradient-to-br from-slate-50 to-slate-100 dark:from-slate-900 dark:via-slate-800 dark:to-slate-900">
+      {/* Background */}
       <div className="fixed inset-0 overflow-hidden pointer-events-none">
-        <div className="absolute -top-40 -right-40 w-96 h-96 bg-blue-500/10 rounded-full blur-3xl"></div>
-        <div className="absolute top-1/2 -left-40 w-96 h-96 bg-purple-500/10 rounded-full blur-3xl"></div>
-        <div className="absolute -bottom-40 right-1/3 w-96 h-96 bg-emerald-500/10 rounded-full blur-3xl"></div>
+        <div className="absolute -top-40 -right-40 w-80 h-80 bg-red-400/20 dark:bg-red-500/10 rounded-full blur-3xl"></div>
+        <div className="absolute top-1/3 -left-40 w-80 h-80 bg-purple-400/20 dark:bg-purple-500/10 rounded-full blur-3xl"></div>
       </div>
 
-      {/* Header */}
-      <header className="border-b border-slate-700/50 backdrop-blur-xl bg-slate-900/50 sticky top-0 z-10">
-        <div className="max-w-7xl mx-auto px-4 sm:px-6 py-4">
-          <div className="flex items-center justify-between">
-            <div className="flex items-center gap-4">
-              <div className="w-10 h-10 bg-gradient-to-br from-blue-500 to-indigo-600 rounded-xl flex items-center justify-center shadow-lg shadow-blue-500/25">
-                <svg className="w-5 h-5 text-white" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                  <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M9 19v-6a2 2 0 00-2-2H5a2 2 0 00-2 2v6a2 2 0 002 2h2a2 2 0 002-2zm0 0V9a2 2 0 012-2h2a2 2 0 012 2v10m-6 0a2 2 0 002 2h2a2 2 0 002-2m0 0V5a2 2 0 012-2h2a2 2 0 012 2v14a2 2 0 01-2 2h-2a2 2 0 01-2-2z" />
-                </svg>
+      <div className="relative max-w-7xl mx-auto px-3 sm:px-6 py-4 sm:py-6">
+        {/* Header */}
+        <header className="mb-4 sm:mb-6">
+          <div className="bg-white/70 dark:bg-slate-800/70 backdrop-blur-xl border border-white/20 dark:border-slate-700/50 rounded-2xl p-3 sm:p-6 shadow-xl">
+            <div className="flex flex-col sm:flex-row items-start sm:items-center justify-between gap-3 sm:gap-4">
+              {/* Title */}
+              <div className="flex items-center gap-3">
+                <Link href="/" className="p-2 hover:bg-slate-100 dark:hover:bg-slate-700 rounded-xl transition-colors">
+                  <svg className="w-5 h-5 text-slate-600 dark:text-slate-400" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                    <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M15 19l-7-7 7-7" />
+                  </svg>
+                </Link>
+                <div className="w-10 h-10 sm:w-12 sm:h-12 bg-gradient-to-br from-red-500 to-pink-600 rounded-xl flex items-center justify-center shadow-lg">
+                  <span className="text-xl sm:text-2xl">⚙️</span>
+                </div>
+                <div>
+                  <h1 className="text-lg sm:text-2xl font-bold text-slate-900 dark:text-white">Admin Dashboard</h1>
+                  <p className="text-xs sm:text-sm text-slate-500 dark:text-slate-400 hidden sm:block">Manage users & settings</p>
+                </div>
               </div>
-              <div>
-                <h1 className="text-xl font-bold text-white">Admin Dashboard</h1>
-                <p className="text-sm text-slate-400">Welcome back, {session?.user?.name}</p>
+              
+              {/* Actions */}
+              <div className="flex items-center gap-2 w-full sm:w-auto justify-end">
+                <DarkModeToggle />
+                <NotificationBell />
+                <UserNav />
               </div>
             </div>
-            <div className="flex items-center gap-3">
-              <button
-                onClick={() => setShowDepartmentManager(true)}
-                className="flex items-center gap-2 px-4 py-2 bg-purple-600 hover:bg-purple-700 rounded-xl text-white font-medium transition-all duration-200 hover:scale-105 shadow-lg shadow-purple-500/25"
-              >
-                <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                  <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M19 21V5a2 2 0 00-2-2H7a2 2 0 00-2 2v16m14 0h2m-2 0h-5m-9 0H3m2 0h5M9 7h1m-1 4h1m4-4h1m-1 4h1m-5 10v-5a1 1 0 011-1h2a1 1 0 011 1v5m-4 0h4" />
-                </svg>
-                <span className="hidden sm:inline">Departments</span>
-              </button>
-              <DateRangeFilter 
-                onFilter={handleDateFilter}
-                onReset={handleDateReset}
-              />
-              <Link
-                href="/"
-                className="flex items-center gap-2 px-4 py-2 bg-slate-800 hover:bg-slate-700 border border-slate-700 rounded-xl text-slate-300 transition-all duration-200 hover:scale-105"
-              >
-                <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                  <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M10 19l-7-7m0 0l7-7m-7 7h18" />
-                </svg>
-                <span className="hidden sm:inline">Back to App</span>
-              </Link>
+          </div>
+        </header>
+
+        {/* Stats Cards */}
+        <div className="grid grid-cols-2 sm:grid-cols-4 gap-2 sm:gap-4 mb-4 sm:mb-6">
+          <div className="bg-white dark:bg-slate-800 rounded-xl p-3 sm:p-4 border border-slate-200 dark:border-slate-700 shadow-lg">
+            <div className="flex items-center justify-between mb-1">
+              <span className="text-xs text-slate-500">Users</span>
+              <span className="text-lg">👥</span>
             </div>
+            <p className="text-xl sm:text-2xl font-bold text-slate-900 dark:text-white">{users.length}</p>
+          </div>
+          <div className="bg-white dark:bg-slate-800 rounded-xl p-3 sm:p-4 border border-slate-200 dark:border-slate-700 shadow-lg">
+            <div className="flex items-center justify-between mb-1">
+              <span className="text-xs text-slate-500">Active Today</span>
+              <span className="text-lg">✅</span>
+            </div>
+            <p className="text-xl sm:text-2xl font-bold text-emerald-600 dark:text-emerald-400">{stats.activeToday || 0}</p>
+          </div>
+          <div className="bg-white dark:bg-slate-800 rounded-xl p-3 sm:p-4 border border-slate-200 dark:border-slate-700 shadow-lg">
+            <div className="flex items-center justify-between mb-1">
+              <span className="text-xs text-slate-500">Pending Leaves</span>
+              <span className="text-lg">⏳</span>
+            </div>
+            <p className="text-xl sm:text-2xl font-bold text-amber-600 dark:text-amber-400">{stats.pendingLeaves || 0}</p>
+          </div>
+          <div className="bg-white dark:bg-slate-800 rounded-xl p-3 sm:p-4 border border-slate-200 dark:border-slate-700 shadow-lg">
+            <div className="flex items-center justify-between mb-1">
+              <span className="text-xs text-slate-500">Leave Types</span>
+              <span className="text-lg">🏖️</span>
+            </div>
+            <p className="text-xl sm:text-2xl font-bold text-blue-600 dark:text-blue-400">{leaveTypes.length}</p>
           </div>
         </div>
-      </header>
 
-      <main className="relative max-w-7xl mx-auto px-4 sm:px-6 py-6">
-        {/* Date Filter Indicator */}
-        {dateFilter.start && dateFilter.end && (
-          <div className="mb-4 px-4 py-2 bg-blue-500/10 border border-blue-500/30 rounded-xl flex items-center justify-between">
-            <span className="text-sm text-blue-300">
-              📅 Showing stats from {new Date(dateFilter.start).toLocaleDateString()} to {new Date(dateFilter.end).toLocaleDateString()}
-            </span>
-            <button
-              onClick={handleDateReset}
-              className="text-sm text-blue-400 hover:underline"
-            >
-              Clear filter
-            </button>
+        {/* Tabs */}
+        <div className="mb-4 sm:mb-6 overflow-x-auto pb-2 -mx-3 px-3 sm:mx-0 sm:px-0">
+          <div className="inline-flex gap-1 sm:gap-2 p-1 bg-white/50 dark:bg-slate-800/50 rounded-xl backdrop-blur-xl border border-slate-200/50 dark:border-slate-700/50 min-w-max">
+            {tabs.map(tab => (
+              <button
+                key={tab.key}
+                onClick={() => setActiveTab(tab.key)}
+                className={`px-3 sm:px-4 py-2 rounded-lg text-xs sm:text-sm font-medium transition-all flex items-center gap-1.5 sm:gap-2 whitespace-nowrap ${
+                  activeTab === tab.key
+                    ? 'bg-white dark:bg-slate-700 text-slate-900 dark:text-white shadow-md'
+                    : 'text-slate-600 dark:text-slate-400 hover:text-slate-900 dark:hover:text-white'
+                }`}
+              >
+                <span>{tab.icon}</span>
+                <span>{tab.label}</span>
+                {tab.count !== undefined && (
+                  <span className="px-1.5 py-0.5 bg-slate-200 dark:bg-slate-600 text-slate-600 dark:text-slate-300 text-xs rounded-full">
+                    {tab.count}
+                  </span>
+                )}
+              </button>
+            ))}
           </div>
-        )}
+        </div>
 
-        {/* Error Display */}
-        {error && (
-          <div className="mb-6 p-4 bg-red-500/10 border border-red-500/50 rounded-2xl flex items-center justify-between">
-            <div className="flex items-center gap-3">
-              <div className="w-10 h-10 bg-red-500/20 rounded-full flex items-center justify-center">
-                <svg className="w-5 h-5 text-red-400" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                  <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M12 8v4m0 4h.01M21 12a9 9 0 11-18 0 9 9 0 0118 0z" />
+        {/* Users Tab */}
+        {activeTab === 'users' && (
+          <div className="space-y-4">
+            {/* Search & Add */}
+            <div className="flex flex-col sm:flex-row gap-3">
+              <div className="flex-1 relative">
+                <svg className="absolute left-3 top-1/2 -translate-y-1/2 w-4 h-4 text-slate-400" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                  <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M21 21l-6-6m2-5a7 7 0 11-14 0 7 7 0 0114 0z" />
                 </svg>
+                <input
+                  type="text"
+                  placeholder="Search users..."
+                  value={searchQuery}
+                  onChange={(e) => setSearchQuery(e.target.value)}
+                  className="w-full pl-10 pr-4 py-2.5 bg-white dark:bg-slate-800 border border-slate-200 dark:border-slate-700 rounded-xl text-sm focus:ring-2 focus:ring-blue-500"
+                />
               </div>
-              <p className="text-red-400">{error}</p>
-            </div>
-            <button 
-              onClick={() => { setHasFetched(false); setError(''); }}
-              className="px-4 py-2 bg-red-500 hover:bg-red-600 rounded-lg text-white font-medium transition-colors"
-            >
-              Retry
-            </button>
-          </div>
-        )}
-
-        {/* Loading State */}
-        {loading && !error && (
-          <div className="flex flex-col items-center justify-center py-20">
-            <div className="w-16 h-16 border-4 border-blue-500 border-t-transparent rounded-full animate-spin mb-4"></div>
-            <p className="text-slate-400">Loading dashboard data...</p>
-          </div>
-        )}
-
-        {/* Dashboard Content */}
-        {!loading && !error && (
-          <>
-            {/* Stats Grid */}
-            <div className="grid grid-cols-2 lg:grid-cols-4 gap-4 mb-6">
-              {/* Total Users Card */}
-              <div className="group relative bg-gradient-to-br from-blue-600 to-indigo-700 rounded-2xl p-5 shadow-xl shadow-blue-500/20 overflow-hidden transition-transform duration-300 hover:scale-105">
-                <div className="absolute top-0 right-0 w-32 h-32 bg-white/10 rounded-full -translate-y-1/2 translate-x-1/2"></div>
-                <div className="relative">
-                  <div className="flex items-center justify-between mb-3">
-                    <span className="text-blue-100 text-sm font-medium">Total Users</span>
-                    <div className="w-10 h-10 bg-white/20 rounded-xl flex items-center justify-center">
-                      <svg className="w-5 h-5 text-white" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                        <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M12 4.354a4 4 0 110 5.292M15 21H3v-1a6 6 0 0112 0v1zm0 0h6v-1a6 6 0 00-9-5.197M13 7a4 4 0 11-8 0 4 4 0 018 0z" />
-                      </svg>
-                    </div>
-                  </div>
-                  <p className="text-4xl font-bold text-white">{stats?.users?.total || 0}</p>
-                  <p className="text-blue-200 text-xs mt-1">Registered accounts</p>
-                </div>
-              </div>
-
-              {/* Today Present Card */}
-              <div className="group relative bg-gradient-to-br from-emerald-600 to-teal-700 rounded-2xl p-5 shadow-xl shadow-emerald-500/20 overflow-hidden transition-transform duration-300 hover:scale-105">
-                <div className="absolute top-0 right-0 w-32 h-32 bg-white/10 rounded-full -translate-y-1/2 translate-x-1/2"></div>
-                <div className="relative">
-                  <div className="flex items-center justify-between mb-3">
-                    <span className="text-emerald-100 text-sm font-medium">Today Present</span>
-                    <div className="w-10 h-10 bg-white/20 rounded-xl flex items-center justify-center">
-                      <svg className="w-5 h-5 text-white" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                        <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M9 12l2 2 4-4m6 2a9 9 0 11-18 0 9 9 0 0118 0z" />
-                      </svg>
-                    </div>
-                  </div>
-                  <p className="text-4xl font-bold text-white">{stats?.attendance?.today?.total || 0}</p>
-                  <p className="text-emerald-200 text-xs mt-1">Checked in today</p>
-                </div>
-              </div>
-
-              {/* Total Tasks Card */}
-              <div className="group relative bg-gradient-to-br from-purple-600 to-pink-700 rounded-2xl p-5 shadow-xl shadow-purple-500/20 overflow-hidden transition-transform duration-300 hover:scale-105">
-                <div className="absolute top-0 right-0 w-32 h-32 bg-white/10 rounded-full -translate-y-1/2 translate-x-1/2"></div>
-                <div className="relative">
-                  <div className="flex items-center justify-between mb-3">
-                    <span className="text-purple-100 text-sm font-medium">Total Tasks</span>
-                    <div className="w-10 h-10 bg-white/20 rounded-xl flex items-center justify-center">
-                      <svg className="w-5 h-5 text-white" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                        <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M9 5H7a2 2 0 00-2 2v12a2 2 0 002 2h10a2 2 0 002-2V7a2 2 0 00-2-2h-2M9 5a2 2 0 002 2h2a2 2 0 002-2M9 5a2 2 0 012-2h2a2 2 0 012 2" />
-                      </svg>
-                    </div>
-                  </div>
-                  <p className="text-4xl font-bold text-white">{stats?.tasks?.total || 0}</p>
-                  <p className="text-purple-200 text-xs mt-1">All time tasks</p>
-                </div>
-              </div>
-
-              {/* Completion Rate Card */}
-              <div className="group relative bg-gradient-to-br from-orange-600 to-red-700 rounded-2xl p-5 shadow-xl shadow-orange-500/20 overflow-hidden transition-transform duration-300 hover:scale-105">
-                <div className="absolute top-0 right-0 w-32 h-32 bg-white/10 rounded-full -translate-y-1/2 translate-x-1/2"></div>
-                <div className="relative">
-                  <div className="flex items-center justify-between mb-3">
-                    <span className="text-orange-100 text-sm font-medium">Completion Rate</span>
-                    <div className="w-10 h-10 bg-white/20 rounded-xl flex items-center justify-center">
-                      <svg className="w-5 h-5 text-white" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                        <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M13 7h8m0 0v8m0-8l-8 8-4-4-6 6" />
-                      </svg>
-                    </div>
-                  </div>
-                  <p className="text-4xl font-bold text-white">{stats?.tasks?.completionRate || 0}%</p>
-                  <p className="text-orange-200 text-xs mt-1">Tasks completed</p>
-                </div>
-              </div>
+              <button
+                onClick={() => { resetUserForm(); setShowUserModal(true) }}
+                className="px-4 py-2.5 bg-gradient-to-r from-blue-500 to-indigo-600 text-white rounded-xl text-sm font-medium flex items-center justify-center gap-2"
+              >
+                <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                  <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M12 4v16m8-8H4" />
+                </svg>
+                <span>Add User</span>
+              </button>
             </div>
 
-            {/* Charts Section */}
-            <div className="mb-6">
-              <AdminCharts stats={stats} users={users} />
-            </div>
-
-            {/* Employees Section */}
-            <div className="bg-slate-800/50 backdrop-blur-xl border border-slate-700/50 rounded-2xl overflow-hidden shadow-xl">
-              {/* Section Header */}
-              <div className="p-4 sm:p-6 border-b border-slate-700/50">
-                <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-4">
-                  <div>
-                    <h2 className="text-xl font-bold text-white">All Employees</h2>
-                    <p className="text-slate-400 text-sm">{filteredUsers.length} of {users.length} employees</p>
+            {/* Users List */}
+            <div className="bg-white dark:bg-slate-800 rounded-xl sm:rounded-2xl border border-slate-200 dark:border-slate-700 shadow-lg overflow-hidden">
+              {/* Mobile Cards */}
+              <div className="sm:hidden divide-y divide-slate-200 dark:divide-slate-700">
+                {filteredUsers.map(user => (
+                  <div key={user.id} className="p-3">
+                    <div className="flex items-start gap-3">
+                      <div className="w-10 h-10 bg-gradient-to-br from-blue-500 to-indigo-600 rounded-xl flex items-center justify-center text-white font-bold text-sm flex-shrink-0">
+                        {user.name?.split(' ').map(n => n[0]).join('').slice(0, 2) || '??'}
+                      </div>
+                      <div className="flex-1 min-w-0">
+                        <div className="flex items-center justify-between">
+                          <p className="font-medium text-slate-900 dark:text-white text-sm truncate">{user.name}</p>
+                          <span className={`px-2 py-0.5 rounded-full text-xs font-medium ${getRoleColor(user.role)}`}>
+                            {user.role}
+                          </span>
+                        </div>
+                        <p className="text-xs text-slate-500 truncate">{user.email}</p>
+                        <p className="text-xs text-slate-400 mt-0.5">{user.department || 'No dept'} • {user.employeeId || 'No ID'}</p>
+                      </div>
+                    </div>
+                    <div className="flex gap-2 mt-3 justify-end">
+                      <button
+                        onClick={() => openEditUser(user)}
+                        className="px-3 py-1.5 bg-slate-100 dark:bg-slate-700 text-slate-600 dark:text-slate-300 rounded-lg text-xs font-medium"
+                      >
+                        Edit
+                      </button>
+                      <button
+                        onClick={() => handleDeleteUser(user.id)}
+                        className="px-3 py-1.5 bg-red-100 dark:bg-red-900/30 text-red-600 dark:text-red-400 rounded-lg text-xs font-medium"
+                      >
+                        Delete
+                      </button>
+                    </div>
                   </div>
-                  <div className="flex items-center gap-2">
-                    <button
-                      onClick={() => exportUsers(filteredUsers)}
-                      className="flex items-center justify-center gap-2 px-4 py-2 bg-emerald-600 hover:bg-emerald-700 rounded-xl text-white font-medium transition-all duration-200 hover:scale-105 shadow-lg shadow-emerald-500/25"
-                    >
-                      <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                        <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M12 10v6m0 0l-3-3m3 3l3-3m2 8H7a2 2 0 01-2-2V5a2 2 0 012-2h5.586a1 1 0 01.707.293l5.414 5.414a1 1 0 01.293.707V19a2 2 0 01-2 2z" />
-                      </svg>
-                      Export CSV
-                    </button>
-                    <button
-                      onClick={() => setHasFetched(false)}
-                      className="flex items-center justify-center gap-2 px-4 py-2 bg-blue-600 hover:bg-blue-700 rounded-xl text-white font-medium transition-all duration-200 hover:scale-105 shadow-lg shadow-blue-500/25"
-                    >
-                      <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                        <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M4 4v5h.582m15.356 2A8.001 8.001 0 004.582 9m0 0H9m11 11v-5h-.581m0 0a8.003 8.003 0 01-15.357-2m15.357 2H15" />
-                      </svg>
-                      Refresh
-                    </button>
-                  </div>
-                </div>
-
-                {/* Search and Filter */}
-                <div className="flex flex-col sm:flex-row gap-3 mt-4">
-                  {/* Search Input */}
-                  <div className="relative flex-1">
-                    <svg className="absolute left-3 top-1/2 -translate-y-1/2 w-5 h-5 text-slate-500" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                      <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M21 21l-6-6m2-5a7 7 0 11-14 0 7 7 0 0114 0z" />
-                    </svg>
-                    <input
-                      type="text"
-                      placeholder="Search by name, email, or employee ID..."
-                      value={searchTerm}
-                      onChange={(e) => setSearchTerm(e.target.value)}
-                      className="w-full pl-10 pr-4 py-2.5 bg-slate-900/50 border border-slate-600/50 rounded-xl text-white placeholder-slate-500 focus:outline-none focus:ring-2 focus:ring-blue-500/50 focus:border-blue-500/50 transition-all"
-                    />
-                  </div>
-
-                  {/* Role Filter */}
-                  <select
-                    value={filterRole}
-                    onChange={(e) => setFilterRole(e.target.value)}
-                    className="px-4 py-2.5 bg-slate-900/50 border border-slate-600/50 rounded-xl text-white focus:outline-none focus:ring-2 focus:ring-blue-500/50 focus:border-blue-500/50 transition-all min-w-[150px]"
-                  >
-                    <option value="">All Roles</option>
-                    <option value="employee">Employee</option>
-                    <option value="hr">HR</option>
-                    <option value="admin">Admin</option>
-                  </select>
-                </div>
+                ))}
               </div>
 
-              {/* Table */}
-              <div className="overflow-x-auto">
+              {/* Desktop Table */}
+              <div className="hidden sm:block overflow-x-auto">
                 <table className="w-full">
                   <thead>
-                    <tr className="bg-slate-900/50">
-                      {/* Select All Checkbox */}
-                      <th className="px-4 py-4 w-12">
-                        <input
-                          type="checkbox"
-                          checked={selectedUsers.length > 0 && selectedUsers.length === filteredUsers.filter(u => u.id !== session?.user?.id).length}
-                          onChange={handleSelectAll}
-                          className="w-4 h-4 rounded border-slate-600 bg-slate-800 text-blue-600 focus:ring-blue-500 focus:ring-offset-slate-800"
-                        />
-                      </th>
-                      <th className="px-4 sm:px-6 py-4 text-left text-xs font-semibold text-slate-400 uppercase tracking-wider">Employee</th>
-                      <th className="px-4 sm:px-6 py-4 text-left text-xs font-semibold text-slate-400 uppercase tracking-wider hidden md:table-cell">Department</th>
-                      <th className="px-4 sm:px-6 py-4 text-left text-xs font-semibold text-slate-400 uppercase tracking-wider">Role</th>
-                      <th className="px-4 sm:px-6 py-4 text-center text-xs font-semibold text-slate-400 uppercase tracking-wider hidden sm:table-cell">Tasks</th>
-                      <th className="px-4 sm:px-6 py-4 text-center text-xs font-semibold text-slate-400 uppercase tracking-wider hidden sm:table-cell">Attendance</th>
-                      <th className="px-4 sm:px-6 py-4 text-center text-xs font-semibold text-slate-400 uppercase tracking-wider">Status</th>
+                    <tr className="bg-slate-50 dark:bg-slate-700/50">
+                      <th className="px-4 py-3 text-left text-xs font-medium text-slate-500 uppercase">User</th>
+                      <th className="px-4 py-3 text-left text-xs font-medium text-slate-500 uppercase">Role</th>
+                      <th className="px-4 py-3 text-left text-xs font-medium text-slate-500 uppercase">Department</th>
+                      <th className="px-4 py-3 text-left text-xs font-medium text-slate-500 uppercase">ID</th>
+                      <th className="px-4 py-3 text-right text-xs font-medium text-slate-500 uppercase">Actions</th>
                     </tr>
                   </thead>
-                  <tbody className="divide-y divide-slate-700/50">
-                    {filteredUsers.map((user, index) => (
-                      <tr 
-                        key={user.id} 
-                        className={`hover:bg-slate-700/30 transition-colors ${
-                          selectedUsers.includes(user.id) ? 'bg-blue-900/20' : ''
-                        }`}
-                        style={{ animationDelay: `${index * 50}ms` }}
-                      >
-                        {/* Selection Checkbox */}
-                        <td className="px-4 py-4 w-12">
-                          {user.id !== session?.user?.id ? (
-                            <input
-                              type="checkbox"
-                              checked={selectedUsers.includes(user.id)}
-                              onChange={() => handleSelectUser(user.id)}
-                              className="w-4 h-4 rounded border-slate-600 bg-slate-800 text-blue-600 focus:ring-blue-500 focus:ring-offset-slate-800"
-                            />
-                          ) : (
-                            <span className="text-slate-600 text-xs">You</span>
-                          )}
-                        </td>
-
-                        {/* Employee Info */}
-                        <td className="px-4 sm:px-6 py-4">
+                  <tbody className="divide-y divide-slate-200 dark:divide-slate-700">
+                    {filteredUsers.map(user => (
+                      <tr key={user.id} className="hover:bg-slate-50 dark:hover:bg-slate-700/50">
+                        <td className="px-4 py-3">
                           <div className="flex items-center gap-3">
-                            <div className={`w-10 h-10 bg-gradient-to-br ${getAvatarGradient(user.name)} rounded-full flex items-center justify-center text-white font-semibold text-sm shadow-lg`}>
-                              {getInitials(user.name)}
+                            <div className="w-9 h-9 bg-gradient-to-br from-blue-500 to-indigo-600 rounded-lg flex items-center justify-center text-white font-bold text-sm">
+                              {user.name?.split(' ').map(n => n[0]).join('').slice(0, 2) || '??'}
                             </div>
-                            <div className="min-w-0">
-                              <p className="font-medium text-white truncate">{user.name}</p>
-                              <p className="text-sm text-slate-400 truncate">{user.email}</p>
-                              {user.employeeId && (
-                                <p className="text-xs text-slate-500 md:hidden">ID: {user.employeeId}</p>
-                              )}
+                            <div>
+                              <p className="font-medium text-slate-900 dark:text-white text-sm">{user.name}</p>
+                              <p className="text-xs text-slate-500">{user.email}</p>
                             </div>
                           </div>
                         </td>
-
-                        {/* Department */}
-                        <td className="px-4 sm:px-6 py-4 hidden md:table-cell">
-                          <span className="text-slate-300">{user.department || '-'}</span>
+                        <td className="px-4 py-3">
+                          <span className={`px-2 py-0.5 rounded-full text-xs font-medium ${getRoleColor(user.role)}`}>
+                            {user.role}
+                          </span>
                         </td>
-
-                        {/* Role */}
-                        <td className="px-4 sm:px-6 py-4">
-                          <span className={`inline-flex items-center px-2.5 py-1 rounded-lg text-xs font-semibold ${
-                            user.role === 'admin' 
-                              ? 'bg-red-500/20 text-red-400 border border-red-500/30' 
-                              : user.role === 'hr' 
-                                ? 'bg-purple-500/20 text-purple-400 border border-purple-500/30' 
-                                : 'bg-blue-500/20 text-blue-400 border border-blue-500/30'
-                          }`}>
-                            {user.role === 'admin' && (
-                              <svg className="w-3 h-3 mr-1" fill="currentColor" viewBox="0 0 20 20">
-                                <path fillRule="evenodd" d="M2.166 4.999A11.954 11.954 0 0010 1.944 11.954 11.954 0 0017.834 5c.11.65.166 1.32.166 2.001 0 5.225-3.34 9.67-8 11.317C5.34 16.67 2 12.225 2 7c0-.682.057-1.35.166-2.001zm11.541 3.708a1 1 0 00-1.414-1.414L9 10.586 7.707 9.293a1 1 0 00-1.414 1.414l2 2a1 1 0 001.414 0l4-4z" clipRule="evenodd" />
+                        <td className="px-4 py-3 text-sm text-slate-600 dark:text-slate-400">{user.department || '-'}</td>
+                        <td className="px-4 py-3 text-sm text-slate-600 dark:text-slate-400">{user.employeeId || '-'}</td>
+                        <td className="px-4 py-3 text-right">
+                          <div className="flex gap-2 justify-end">
+                            <button
+                              onClick={() => openEditUser(user)}
+                              className="p-2 text-slate-400 hover:text-blue-500 hover:bg-blue-50 dark:hover:bg-blue-900/20 rounded-lg"
+                            >
+                              <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                                <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M15.232 5.232l3.536 3.536m-2.036-5.036a2.5 2.5 0 113.536 3.536L6.5 21.036H3v-3.572L16.732 3.732z" />
                               </svg>
-                            )}
-                            {user.role?.charAt(0).toUpperCase() + user.role?.slice(1)}
-                          </span>
-                        </td>
-
-                        {/* Tasks */}
-                        <td className="px-4 sm:px-6 py-4 text-center hidden sm:table-cell">
-                          <div className="inline-flex items-center gap-1.5 px-2.5 py-1 bg-slate-700/50 rounded-lg">
-                            <svg className="w-4 h-4 text-purple-400" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                              <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M9 5H7a2 2 0 00-2 2v12a2 2 0 002 2h10a2 2 0 002-2V7a2 2 0 00-2-2h-2M9 5a2 2 0 002 2h2a2 2 0 002-2M9 5a2 2 0 012-2h2a2 2 0 012 2" />
-                            </svg>
-                            <span className="text-slate-300 font-medium">{user._count?.tasks || 0}</span>
+                            </button>
+                            <button
+                              onClick={() => handleDeleteUser(user.id)}
+                              className="p-2 text-slate-400 hover:text-red-500 hover:bg-red-50 dark:hover:bg-red-900/20 rounded-lg"
+                            >
+                              <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                                <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M19 7l-.867 12.142A2 2 0 0116.138 21H7.862a2 2 0 01-1.995-1.858L5 7m5 4v6m4-6v6m1-10V4a1 1 0 00-1-1h-4a1 1 0 00-1 1v3M4 7h16" />
+                              </svg>
+                            </button>
                           </div>
-                        </td>
-
-                        {/* Attendance */}
-                        <td className="px-4 sm:px-6 py-4 text-center hidden sm:table-cell">
-                          <div className="inline-flex items-center gap-1.5 px-2.5 py-1 bg-slate-700/50 rounded-lg">
-                            <svg className="w-4 h-4 text-emerald-400" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                              <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M8 7V3m8 4V3m-9 8h10M5 21h14a2 2 0 002-2V7a2 2 0 00-2-2H5a2 2 0 00-2 2v12a2 2 0 002 2z" />
-                            </svg>
-                            <span className="text-slate-300 font-medium">{user._count?.attendance || 0}</span>
-                          </div>
-                        </td>
-
-                        {/* Status */}
-                        <td className="px-4 sm:px-6 py-4 text-center">
-                          <span className={`inline-flex items-center gap-1 px-2.5 py-1 rounded-full text-xs font-semibold ${
-                            user.isActive 
-                              ? 'bg-emerald-500/20 text-emerald-400' 
-                              : 'bg-red-500/20 text-red-400'
-                          }`}>
-                            <span className={`w-1.5 h-1.5 rounded-full ${user.isActive ? 'bg-emerald-400' : 'bg-red-400'}`}></span>
-                            {user.isActive ? 'Active' : 'Inactive'}
-                          </span>
                         </td>
                       </tr>
                     ))}
-
-                    {filteredUsers.length === 0 && (
-                      <tr>
-                        <td colSpan={7} className="px-6 py-12 text-center">
-                          <div className="flex flex-col items-center">
-                            <div className="w-16 h-16 bg-slate-700/50 rounded-full flex items-center justify-center mb-4">
-                              <svg className="w-8 h-8 text-slate-500" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                                <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M20 13V6a2 2 0 00-2-2H6a2 2 0 00-2 2v7m16 0v5a2 2 0 01-2 2H6a2 2 0 01-2-2v-5m16 0h-2.586a1 1 0 00-.707.293l-2.414 2.414a1 1 0 01-.707.293h-3.172a1 1 0 01-.707-.293l-2.414-2.414A1 1 0 006.586 13H4" />
-                              </svg>
-                            </div>
-                            <p className="text-slate-400 font-medium">No employees found</p>
-                            <p className="text-slate-500 text-sm mt-1">Try adjusting your search or filter</p>
-                          </div>
-                        </td>
-                      </tr>
-                    )}
                   </tbody>
                 </table>
               </div>
 
-              {/* Table Footer */}
-              <div className="px-6 py-4 border-t border-slate-700/50 bg-slate-900/30">
-                <p className="text-sm text-slate-500">
-                  Showing {filteredUsers.length} of {users.length} employees
-                  {selectedUsers.length > 0 && (
-                    <span className="ml-2 text-blue-400">• {selectedUsers.length} selected</span>
-                  )}
-                </p>
-              </div>
+              {filteredUsers.length === 0 && (
+                <div className="text-center py-8 sm:py-12">
+                  <div className="w-12 h-12 sm:w-16 sm:h-16 bg-slate-100 dark:bg-slate-700 rounded-full flex items-center justify-center mx-auto mb-3">
+                    <span className="text-2xl sm:text-3xl">👥</span>
+                  </div>
+                  <p className="text-slate-600 dark:text-slate-400 font-medium text-sm sm:text-base">No users found</p>
+                </div>
+              )}
             </div>
-          </>
+          </div>
         )}
 
-        {/* Bulk Actions */}
-        <BulkActions
-          selectedUsers={selectedUsers}
-          onAction={() => setHasFetched(false)}
-          onClearSelection={handleClearSelection}
-          departments={departments}
-        />
+        {/* Leave Types Tab */}
+        {activeTab === 'leaveTypes' && (
+          <div className="space-y-4">
+            <div className="flex justify-end">
+              <button
+                onClick={() => { resetLeaveTypeForm(); setShowLeaveTypeModal(true) }}
+                className="px-4 py-2.5 bg-gradient-to-r from-green-500 to-emerald-600 text-white rounded-xl text-sm font-medium flex items-center gap-2"
+              >
+                <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                  <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M12 4v16m8-8H4" />
+                </svg>
+                <span>Add Leave Type</span>
+              </button>
+            </div>
 
-        {/* Department Manager Modal */}
-        {showDepartmentManager && (
-          <DepartmentManager
-            onClose={() => setShowDepartmentManager(false)}
-            onUpdate={() => setHasFetched(false)}
-          />
+            <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-3 sm:gap-4">
+              {leaveTypes.map(type => (
+                <div
+                  key={type.id}
+                  className="bg-white dark:bg-slate-800 rounded-xl p-4 border border-slate-200 dark:border-slate-700 shadow-lg"
+                >
+                  <div className="flex items-center justify-between mb-3">
+                    <span
+                      className="px-2.5 py-1 rounded-lg text-xs font-bold text-white"
+                      style={{ backgroundColor: type.color }}
+                    >
+                      {type.code}
+                    </span>
+                    <div className="flex gap-1">
+                      <button
+                        onClick={() => openEditLeaveType(type)}
+                        className="p-1.5 text-slate-400 hover:text-blue-500"
+                      >
+                        <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                          <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M15.232 5.232l3.536 3.536m-2.036-5.036a2.5 2.5 0 113.536 3.536L6.5 21.036H3v-3.572L16.732 3.732z" />
+                        </svg>
+                      </button>
+                    </div>
+                  </div>
+                  <h3 className="font-semibold text-slate-900 dark:text-white mb-2">{type.name}</h3>
+                  <div className="space-y-1 text-xs">
+                    <div className="flex justify-between">
+                      <span className="text-slate-500">Default Days</span>
+                      <span className="font-medium text-slate-700 dark:text-slate-300">{type.defaultDays}</span>
+                    </div>
+                    <div className="flex justify-between">
+                      <span className="text-slate-500">Type</span>
+                      <span className={`font-medium ${type.isPaid ? 'text-emerald-600' : 'text-amber-600'}`}>
+                        {type.isPaid ? 'Paid' : 'Unpaid'}
+                      </span>
+                    </div>
+                    <div className="flex justify-between">
+                      <span className="text-slate-500">Carry Forward</span>
+                      <span className="font-medium text-slate-700 dark:text-slate-300">
+                        {type.carryForward ? 'Yes' : 'No'}
+                      </span>
+                    </div>
+                  </div>
+                </div>
+              ))}
+
+              {leaveTypes.length === 0 && (
+                <div className="col-span-full text-center py-8 sm:py-12 bg-white dark:bg-slate-800 rounded-2xl border border-slate-200 dark:border-slate-700">
+                  <div className="w-12 h-12 sm:w-16 sm:h-16 bg-slate-100 dark:bg-slate-700 rounded-full flex items-center justify-center mx-auto mb-3">
+                    <span className="text-2xl sm:text-3xl">🏖️</span>
+                  </div>
+                  <p className="text-slate-600 dark:text-slate-400 font-medium text-sm sm:text-base">No leave types found</p>
+                  <p className="text-slate-500 text-xs sm:text-sm mt-1">Add leave types to enable leave management</p>
+                </div>
+              )}
+            </div>
+          </div>
         )}
-      </main>
+
+        {/* Settings Tab */}
+        {activeTab === 'settings' && (
+          <div className="bg-white dark:bg-slate-800 rounded-xl sm:rounded-2xl p-4 sm:p-6 border border-slate-200 dark:border-slate-700 shadow-lg">
+            <h2 className="text-lg font-semibold text-slate-900 dark:text-white mb-4">System Settings</h2>
+            <p className="text-sm text-slate-500">Settings panel coming soon...</p>
+          </div>
+        )}
+      </div>
+
+      {/* User Modal */}
+      {showUserModal && (
+        <div className="fixed inset-0 bg-black/50 backdrop-blur-sm flex items-center justify-center z-50 p-2 sm:p-4">
+          <div className="bg-white dark:bg-slate-800 rounded-2xl shadow-2xl w-full max-w-md max-h-[95vh] overflow-hidden border border-slate-200 dark:border-slate-700 flex flex-col">
+            <div className="px-4 sm:px-6 py-3 sm:py-4 border-b border-slate-200 dark:border-slate-700 flex items-center justify-between flex-shrink-0">
+              <h2 className="text-base sm:text-lg font-bold text-slate-900 dark:text-white">
+                {editingUser ? 'Edit User' : 'Add User'}
+              </h2>
+              <button onClick={() => setShowUserModal(false)} className="p-2 hover:bg-slate-100 dark:hover:bg-slate-700 rounded-xl">
+                <svg className="w-5 h-5 text-slate-500" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                  <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M6 18L18 6M6 6l12 12" />
+                </svg>
+              </button>
+            </div>
+
+            <form onSubmit={handleSaveUser} className="flex-1 overflow-y-auto p-4 sm:p-6 space-y-4">
+              <div>
+                <label className="block text-sm font-medium text-slate-700 dark:text-slate-300 mb-1">Name</label>
+                <input
+                  type="text"
+                  value={userForm.name}
+                  onChange={(e) => setUserForm({ ...userForm, name: e.target.value })}
+                  className="w-full px-3 py-2 bg-slate-100 dark:bg-slate-700 rounded-xl text-sm border-0"
+                  required
+                />
+              </div>
+              <div>
+                <label className="block text-sm font-medium text-slate-700 dark:text-slate-300 mb-1">Email</label>
+                <input
+                  type="email"
+                  value={userForm.email}
+                  onChange={(e) => setUserForm({ ...userForm, email: e.target.value })}
+                  className="w-full px-3 py-2 bg-slate-100 dark:bg-slate-700 rounded-xl text-sm border-0"
+                  required
+                />
+              </div>
+              <div className="grid grid-cols-2 gap-3">
+                <div>
+                  <label className="block text-sm font-medium text-slate-700 dark:text-slate-300 mb-1">Role</label>
+                  <select
+                    value={userForm.role}
+                    onChange={(e) => setUserForm({ ...userForm, role: e.target.value })}
+                    className="w-full px-3 py-2 bg-slate-100 dark:bg-slate-700 rounded-xl text-sm border-0"
+                  >
+                    <option value="employee">Employee</option>
+                    <option value="manager">Manager</option>
+                    <option value="hr">HR</option>
+                    <option value="admin">Admin</option>
+                  </select>
+                </div>
+                <div>
+                  <label className="block text-sm font-medium text-slate-700 dark:text-slate-300 mb-1">Department</label>
+                  <input
+                    type="text"
+                    value={userForm.department}
+                    onChange={(e) => setUserForm({ ...userForm, department: e.target.value })}
+                    className="w-full px-3 py-2 bg-slate-100 dark:bg-slate-700 rounded-xl text-sm border-0"
+                  />
+                </div>
+              </div>
+              <div className="grid grid-cols-2 gap-3">
+                <div>
+                  <label className="block text-sm font-medium text-slate-700 dark:text-slate-300 mb-1">Employee ID</label>
+                  <input
+                    type="text"
+                    value={userForm.employeeId}
+                    onChange={(e) => setUserForm({ ...userForm, employeeId: e.target.value })}
+                    className="w-full px-3 py-2 bg-slate-100 dark:bg-slate-700 rounded-xl text-sm border-0"
+                  />
+                </div>
+                <div>
+                  <label className="block text-sm font-medium text-slate-700 dark:text-slate-300 mb-1">Phone</label>
+                  <input
+                    type="tel"
+                    value={userForm.phone}
+                    onChange={(e) => setUserForm({ ...userForm, phone: e.target.value })}
+                    className="w-full px-3 py-2 bg-slate-100 dark:bg-slate-700 rounded-xl text-sm border-0"
+                  />
+                </div>
+              </div>
+            </form>
+
+            <div className="px-4 sm:px-6 py-3 sm:py-4 border-t border-slate-200 dark:border-slate-700 flex gap-3 flex-shrink-0">
+              <button
+                type="button"
+                onClick={() => setShowUserModal(false)}
+                className="flex-1 px-4 py-2.5 bg-slate-200 dark:bg-slate-700 text-slate-700 dark:text-slate-300 rounded-xl text-sm font-medium"
+              >
+                Cancel
+              </button>
+              <button
+                onClick={handleSaveUser}
+                className="flex-1 px-4 py-2.5 bg-gradient-to-r from-blue-500 to-indigo-600 text-white rounded-xl text-sm font-medium"
+              >
+                {editingUser ? 'Update' : 'Create'}
+              </button>
+            </div>
+          </div>
+        </div>
+      )}
+
+      {/* Leave Type Modal */}
+      {showLeaveTypeModal && (
+        <div className="fixed inset-0 bg-black/50 backdrop-blur-sm flex items-center justify-center z-50 p-2 sm:p-4">
+          <div className="bg-white dark:bg-slate-800 rounded-2xl shadow-2xl w-full max-w-md max-h-[95vh] overflow-hidden border border-slate-200 dark:border-slate-700 flex flex-col">
+            <div className="px-4 sm:px-6 py-3 sm:py-4 border-b border-slate-200 dark:border-slate-700 flex items-center justify-between flex-shrink-0">
+              <h2 className="text-base sm:text-lg font-bold text-slate-900 dark:text-white">
+                {editingLeaveType ? 'Edit Leave Type' : 'Add Leave Type'}
+              </h2>
+              <button onClick={() => setShowLeaveTypeModal(false)} className="p-2 hover:bg-slate-100 dark:hover:bg-slate-700 rounded-xl">
+                <svg className="w-5 h-5 text-slate-500" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                  <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M6 18L18 6M6 6l12 12" />
+                </svg>
+              </button>
+            </div>
+
+            <form onSubmit={handleSaveLeaveType} className="flex-1 overflow-y-auto p-4 sm:p-6 space-y-4">
+              <div className="grid grid-cols-2 gap-3">
+                <div>
+                  <label className="block text-sm font-medium text-slate-700 dark:text-slate-300 mb-1">Name</label>
+                  <input
+                    type="text"
+                    value={leaveTypeForm.name}
+                    onChange={(e) => setLeaveTypeForm({ ...leaveTypeForm, name: e.target.value })}
+                    className="w-full px-3 py-2 bg-slate-100 dark:bg-slate-700 rounded-xl text-sm border-0"
+                    required
+                  />
+                </div>
+                <div>
+                  <label className="block text-sm font-medium text-slate-700 dark:text-slate-300 mb-1">Code</label>
+                  <input
+                    type="text"
+                    value={leaveTypeForm.code}
+                    onChange={(e) => setLeaveTypeForm({ ...leaveTypeForm, code: e.target.value.toUpperCase() })}
+                    maxLength={4}
+                    className="w-full px-3 py-2 bg-slate-100 dark:bg-slate-700 rounded-xl text-sm border-0"
+                    required
+                  />
+                </div>
+              </div>
+              <div className="grid grid-cols-2 gap-3">
+                <div>
+                  <label className="block text-sm font-medium text-slate-700 dark:text-slate-300 mb-1">Color</label>
+                  <input
+                    type="color"
+                    value={leaveTypeForm.color}
+                    onChange={(e) => setLeaveTypeForm({ ...leaveTypeForm, color: e.target.value })}
+                    className="w-full h-10 rounded-xl border-0 cursor-pointer"
+                  />
+                </div>
+                <div>
+                  <label className="block text-sm font-medium text-slate-700 dark:text-slate-300 mb-1">Default Days</label>
+                  <input
+                    type="number"
+                    value={leaveTypeForm.defaultDays}
+                    onChange={(e) => setLeaveTypeForm({ ...leaveTypeForm, defaultDays: parseInt(e.target.value) || 0 })}
+                    className="w-full px-3 py-2 bg-slate-100 dark:bg-slate-700 rounded-xl text-sm border-0"
+                    min="0"
+                  />
+                </div>
+              </div>
+              <div className="flex gap-4">
+                <label className="flex items-center gap-2 cursor-pointer">
+                  <input
+                    type="checkbox"
+                    checked={leaveTypeForm.isPaid}
+                    onChange={(e) => setLeaveTypeForm({ ...leaveTypeForm, isPaid: e.target.checked })}
+                    className="w-4 h-4 rounded border-slate-300 text-green-500 focus:ring-green-500"
+                  />
+                  <span className="text-sm text-slate-700 dark:text-slate-300">Paid Leave</span>
+                </label>
+                <label className="flex items-center gap-2 cursor-pointer">
+                  <input
+                    type="checkbox"
+                    checked={leaveTypeForm.carryForward}
+                    onChange={(e) => setLeaveTypeForm({ ...leaveTypeForm, carryForward: e.target.checked })}
+                    className="w-4 h-4 rounded border-slate-300 text-green-500 focus:ring-green-500"
+                  />
+                  <span className="text-sm text-slate-700 dark:text-slate-300">Carry Forward</span>
+                </label>
+              </div>
+            </form>
+
+            <div className="px-4 sm:px-6 py-3 sm:py-4 border-t border-slate-200 dark:border-slate-700 flex gap-3 flex-shrink-0">
+              <button
+                type="button"
+                onClick={() => setShowLeaveTypeModal(false)}
+                className="flex-1 px-4 py-2.5 bg-slate-200 dark:bg-slate-700 text-slate-700 dark:text-slate-300 rounded-xl text-sm font-medium"
+              >
+                Cancel
+              </button>
+              <button
+                onClick={handleSaveLeaveType}
+                className="flex-1 px-4 py-2.5 bg-gradient-to-r from-green-500 to-emerald-600 text-white rounded-xl text-sm font-medium"
+              >
+                {editingLeaveType ? 'Update' : 'Create'}
+              </button>
+            </div>
+          </div>
+        </div>
+      )}
     </div>
   )
 }

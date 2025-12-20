@@ -1,155 +1,155 @@
 'use client'
 
-
-
-
 import { useState } from 'react'
 import { signIn } from 'next-auth/react'
-import { useRouter } from 'next/navigation'
+import { useRouter, useSearchParams } from 'next/navigation'
 import Link from 'next/link'
 
 export default function LoginPage() {
   const router = useRouter()
+  const searchParams = useSearchParams()
+  const callbackUrl = searchParams.get('callbackUrl') || '/'
+  const error = searchParams.get('error')
+
   const [formData, setFormData] = useState({
     email: '',
     password: ''
   })
-  const [error, setError] = useState('')
   const [loading, setLoading] = useState(false)
-
-  const handleChange = (e) => {
-    const { name, value } = e.target
-    setFormData(prev => ({
-      ...prev,
-      [name]: value
-    }))
-    setError('') // Clear error when user types
-  }
+  const [errorMsg, setErrorMsg] = useState(error ? 'Invalid credentials' : '')
 
   const handleSubmit = async (e) => {
     e.preventDefault()
     setLoading(true)
-    setError('')
+    setErrorMsg('')
 
     try {
       const result = await signIn('credentials', {
-        redirect: false,
         email: formData.email,
-        password: formData.password
+        password: formData.password,
+        redirect: false
       })
 
       if (result?.error) {
-        setError(result.error)
+        setErrorMsg('Invalid email or password')
         setLoading(false)
-        return
+      } else {
+        // Successful login - redirect
+        router.push(callbackUrl)
+        router.refresh()
       }
-
-      // Successful login - redirect to dashboard
-      router.push('/')
-      router.refresh()
-    } catch (err) {
-      setError('An unexpected error occurred')
+    } catch (error) {
+      setErrorMsg('An error occurred. Please try again.')
       setLoading(false)
     }
   }
 
   return (
-    <div className="min-h-screen flex items-center justify-center bg-gradient-to-br from-slate-900 via-slate-800 to-slate-900 px-4">
-      {/* Background decoration */}
-      <div className="absolute inset-0 overflow-hidden pointer-events-none">
-        <div className="absolute -top-40 -right-40 w-80 h-80 bg-blue-500/10 rounded-full blur-3xl"></div>
-        <div className="absolute -bottom-40 -left-40 w-80 h-80 bg-indigo-500/10 rounded-full blur-3xl"></div>
+    <div className="min-h-screen bg-gradient-to-br from-slate-50 to-slate-100 dark:from-slate-900 dark:via-slate-800 dark:to-slate-900 flex items-center justify-center p-4">
+      {/* Background */}
+      <div className="fixed inset-0 overflow-hidden pointer-events-none">
+        <div className="absolute -top-40 -right-40 w-80 h-80 bg-blue-400/30 dark:bg-blue-500/20 rounded-full blur-3xl"></div>
+        <div className="absolute -bottom-40 -left-40 w-80 h-80 bg-purple-400/30 dark:bg-purple-500/20 rounded-full blur-3xl"></div>
       </div>
 
       <div className="relative w-full max-w-md">
-        {/* Logo/Brand */}
-        <div className="text-center mb-8">
-          <div className="inline-flex items-center justify-center w-16 h-16 bg-gradient-to-br from-blue-500 to-indigo-600 rounded-2xl mb-4 shadow-lg shadow-blue-500/25">
-            <svg className="w-8 h-8 text-white" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-              <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M9 5H7a2 2 0 00-2 2v12a2 2 0 002 2h10a2 2 0 002-2V7a2 2 0 00-2-2h-2M9 5a2 2 0 002 2h2a2 2 0 002-2M9 5a2 2 0 012-2h2a2 2 0 012 2m-6 9l2 2 4-4" />
-            </svg>
+        {/* Logo & Title */}
+        <div className="text-center mb-6 sm:mb-8">
+          <div className="w-16 h-16 sm:w-20 sm:h-20 bg-gradient-to-br from-blue-500 to-indigo-600 rounded-2xl flex items-center justify-center mx-auto shadow-xl shadow-blue-500/30 mb-4">
+            <span className="text-3xl sm:text-4xl">📋</span>
           </div>
-          <h1 className="text-2xl font-bold text-white tracking-tight">
-            Attendance Monitor
-          </h1>
-          <p className="text-slate-400 mt-1">Sign in to your account</p>
+          <h1 className="text-2xl sm:text-3xl font-bold text-slate-900 dark:text-white">Welcome Back</h1>
+          <p className="text-sm sm:text-base text-slate-500 dark:text-slate-400 mt-1">Sign in to your account</p>
         </div>
 
-        {/* Login Card */}
-        <div className="bg-slate-800/50 backdrop-blur-xl border border-slate-700/50 rounded-2xl p-8 shadow-2xl">
-          <form onSubmit={handleSubmit} className="space-y-6">
+        {/* Login Form */}
+        <div className="bg-white/80 dark:bg-slate-800/80 backdrop-blur-xl rounded-2xl sm:rounded-3xl p-6 sm:p-8 shadow-xl border border-white/20 dark:border-slate-700/50">
+          <form onSubmit={handleSubmit} className="space-y-4 sm:space-y-5">
             {/* Error Message */}
-            {error && (
-              <div className="bg-red-500/10 border border-red-500/50 rounded-lg p-3 flex items-center gap-2">
-                <svg className="w-5 h-5 text-red-400 flex-shrink-0" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                  <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M12 8v4m0 4h.01M21 12a9 9 0 11-18 0 9 9 0 0118 0z" />
-                </svg>
-                <p className="text-red-400 text-sm">{error}</p>
+            {errorMsg && (
+              <div className="p-3 bg-red-50 dark:bg-red-900/20 border border-red-200 dark:border-red-800 rounded-xl">
+                <p className="text-sm text-red-600 dark:text-red-400 flex items-center gap-2">
+                  <svg className="w-4 h-4 flex-shrink-0" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                    <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M12 8v4m0 4h.01M21 12a9 9 0 11-18 0 9 9 0 0118 0z" />
+                  </svg>
+                  {errorMsg}
+                </p>
               </div>
             )}
 
-            {/* Email Field */}
+            {/* Email */}
             <div>
-              <label htmlFor="email" className="block text-sm font-medium text-slate-300 mb-2">
+              <label className="block text-sm font-medium text-slate-700 dark:text-slate-300 mb-1.5">
                 Email Address
               </label>
-              <input
-                type="email"
-                id="email"
-                name="email"
-                value={formData.email}
-                onChange={handleChange}
-                required
-                autoComplete="email"
-                className="w-full px-4 py-3 bg-slate-900/50 border border-slate-600/50 rounded-xl text-white placeholder-slate-500 focus:outline-none focus:ring-2 focus:ring-blue-500/50 focus:border-blue-500/50 transition-all duration-200"
-                placeholder="you@example.com"
-              />
-            </div>
-
-            {/* Password Field */}
-            <div>
-              <div className="flex items-center justify-between mb-2">
-                <label htmlFor="password" className="block text-sm font-medium text-slate-300">
-                  Password
-                </label>
-                <Link 
-                  href="/forgot-password"
-                  className="text-sm text-blue-400 hover:text-blue-300 transition-colors"
-                >
-                  Forgot password?
-                </Link>
+              <div className="relative">
+                <div className="absolute inset-y-0 left-0 pl-3 flex items-center pointer-events-none">
+                  <svg className="w-5 h-5 text-slate-400" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                    <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M16 12a4 4 0 10-8 0 4 4 0 008 0zm0 0v1.5a2.5 2.5 0 005 0V12a9 9 0 10-9 9m4.5-1.206a8.959 8.959 0 01-4.5 1.207" />
+                  </svg>
+                </div>
+                <input
+                  type="email"
+                  value={formData.email}
+                  onChange={(e) => setFormData({ ...formData, email: e.target.value })}
+                  placeholder="you@example.com"
+                  className="w-full pl-10 pr-4 py-3 bg-slate-100 dark:bg-slate-700/50 border-0 rounded-xl text-slate-900 dark:text-white text-sm sm:text-base focus:ring-2 focus:ring-blue-500 placeholder-slate-400"
+                  required
+                />
               </div>
-              <input
-                type="password"
-                id="password"
-                name="password"
-                value={formData.password}
-                onChange={handleChange}
-                required
-                autoComplete="current-password"
-                className="w-full px-4 py-3 bg-slate-900/50 border border-slate-600/50 rounded-xl text-white placeholder-slate-500 focus:outline-none focus:ring-2 focus:ring-blue-500/50 focus:border-blue-500/50 transition-all duration-200"
-                placeholder="••••••••"
-              />
             </div>
 
-            {/* Submit Button */}
+            {/* Password */}
+            <div>
+              <label className="block text-sm font-medium text-slate-700 dark:text-slate-300 mb-1.5">
+                Password
+              </label>
+              <div className="relative">
+                <div className="absolute inset-y-0 left-0 pl-3 flex items-center pointer-events-none">
+                  <svg className="w-5 h-5 text-slate-400" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                    <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M12 15v2m-6 4h12a2 2 0 002-2v-6a2 2 0 00-2-2H6a2 2 0 00-2 2v6a2 2 0 002 2zm10-10V7a4 4 0 00-8 0v4h8z" />
+                  </svg>
+                </div>
+                <input
+                  type="password"
+                  value={formData.password}
+                  onChange={(e) => setFormData({ ...formData, password: e.target.value })}
+                  placeholder="••••••••"
+                  className="w-full pl-10 pr-4 py-3 bg-slate-100 dark:bg-slate-700/50 border-0 rounded-xl text-slate-900 dark:text-white text-sm sm:text-base focus:ring-2 focus:ring-blue-500 placeholder-slate-400"
+                  required
+                />
+              </div>
+            </div>
+
+            {/* Remember & Forgot */}
+            <div className="flex items-center justify-between text-sm">
+              <label className="flex items-center gap-2 cursor-pointer">
+                <input type="checkbox" className="w-4 h-4 rounded border-slate-300 text-blue-500 focus:ring-blue-500" />
+                <span className="text-slate-600 dark:text-slate-400">Remember me</span>
+              </label>
+              <Link href="/forgot-password" className="text-blue-600 dark:text-blue-400 hover:underline font-medium">
+                Forgot password?
+              </Link>
+            </div>
 
             {/* Submit Button */}
             <button
               type="submit"
               disabled={loading}
-              className="w-full py-3 px-4 bg-gradient-to-r from-blue-500 to-indigo-600 text-white font-semibold rounded-xl hover:from-blue-600 hover:to-indigo-700 focus:outline-none focus:ring-2 focus:ring-blue-500/50 focus:ring-offset-2 focus:ring-offset-slate-800 transition-all duration-200 disabled:opacity-50 disabled:cursor-not-allowed shadow-lg shadow-blue-500/25"
+              className="w-full py-3 sm:py-3.5 bg-gradient-to-r from-blue-500 to-indigo-600 text-white rounded-xl font-medium text-sm sm:text-base shadow-lg shadow-blue-500/25 hover:from-blue-600 hover:to-indigo-700 transition-all disabled:opacity-50 disabled:cursor-not-allowed flex items-center justify-center gap-2"
             >
               {loading ? (
-                <span className="flex items-center justify-center gap-2">
-                  <svg className="animate-spin w-5 h-5" fill="none" viewBox="0 0 24 24">
-                    <circle className="opacity-25" cx="12" cy="12" r="10" stroke="currentColor" strokeWidth="4"></circle>
-                    <path className="opacity-75" fill="currentColor" d="M4 12a8 8 0 018-8V0C5.373 0 0 5.373 0 12h4zm2 5.291A7.962 7.962 0 014 12H0c0 3.042 1.135 5.824 3 7.938l3-2.647z"></path>
-                  </svg>
-                  Signing in...
-                </span>
+                <>
+                  <div className="w-5 h-5 border-2 border-white border-t-transparent rounded-full animate-spin"></div>
+                  <span>Signing in...</span>
+                </>
               ) : (
-                'Sign In'
+                <>
+                  <span>Sign In</span>
+                  <svg className="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                    <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M14 5l7 7m0 0l-7 7m7-7H3" />
+                  </svg>
+                </>
               )}
             </button>
           </form>
@@ -157,25 +157,25 @@ export default function LoginPage() {
           {/* Divider */}
           <div className="relative my-6">
             <div className="absolute inset-0 flex items-center">
-              <div className="w-full border-t border-slate-700"></div>
+              <div className="w-full border-t border-slate-200 dark:border-slate-700"></div>
             </div>
             <div className="relative flex justify-center text-sm">
-              <span className="px-2 bg-slate-800/50 text-slate-500">New here?</span>
+              <span className="px-4 bg-white dark:bg-slate-800 text-slate-500">or</span>
             </div>
           </div>
 
           {/* Sign Up Link */}
-          <Link
-            href="/signup"
-            className="block w-full py-3 px-4 text-center border border-slate-600/50 text-slate-300 font-medium rounded-xl hover:bg-slate-700/50 hover:border-slate-500/50 transition-all duration-200"
-          >
-            Create an Account
-          </Link>
+          <p className="text-center text-sm text-slate-600 dark:text-slate-400">
+            Don't have an account?{' '}
+            <Link href="/signup" className="text-blue-600 dark:text-blue-400 hover:underline font-semibold">
+              Create Account
+            </Link>
+          </p>
         </div>
 
         {/* Footer */}
-        <p className="text-center text-slate-500 text-sm mt-6">
-          © 2024 Attendance Monitor. All rights reserved.
+        <p className="text-center text-xs text-slate-500 dark:text-slate-500 mt-6">
+          © 2024 Attendance App. All rights reserved.
         </p>
       </div>
     </div>
