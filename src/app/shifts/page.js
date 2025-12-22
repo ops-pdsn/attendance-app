@@ -1,8 +1,5 @@
 'use client'
 
-
-
-
 import { useState, useEffect } from 'react'
 import { useSession } from 'next-auth/react'
 import { useRouter } from 'next/navigation'
@@ -12,6 +9,7 @@ import UserNav from '@/components/UserNav'
 import NotificationBell from '@/components/NotificationBell'
 import { useToast } from '@/components/Toast'
 import { useConfirm } from '@/components/ConfirmDialog'
+import ProtectedPage from '@/components/ProtectedPage'
 
 export default function ShiftManagement() {
   const { data: session, status } = useSession()
@@ -27,31 +25,19 @@ export default function ShiftManagement() {
   const [showAssignModal, setShowAssignModal] = useState(false)
   const [editingShift, setEditingShift] = useState(null)
   const [formData, setFormData] = useState({
-    name: '',
-    code: '',
-    startTime: '09:00',
-    endTime: '17:00',
-    breakMinutes: 60,
-    graceMinutes: 15,
-    color: '#3b82f6'
+    name: '', code: '', startTime: '09:00', endTime: '17:00',
+    breakMinutes: 60, graceMinutes: 15, color: '#3b82f6'
   })
   const [assignData, setAssignData] = useState({
-    userId: '',
-    shiftId: '',
-    startDate: new Date().toISOString().split('T')[0],
-    endDate: ''
+    userId: '', shiftId: '', startDate: new Date().toISOString().split('T')[0], endDate: ''
   })
 
   useEffect(() => {
     if (status === 'unauthenticated') {
       router.push('/login')
     } else if (status === 'authenticated') {
-      if (!['admin', 'hr'].includes(session?.user?.role)) {
-        router.push('/')
-        toast.error('Access denied. Admin/HR privileges required.')
-      } else {
-        fetchData()
-      }
+      // REMOVED old role check - ProtectedPage handles permissions now
+      fetchData()
     }
   }, [status, session, router])
 
@@ -116,12 +102,7 @@ export default function ShiftManagement() {
       if (res.ok) {
         toast.success('Shift assigned successfully!')
         setShowAssignModal(false)
-        setAssignData({
-          userId: '',
-          shiftId: '',
-          startDate: new Date().toISOString().split('T')[0],
-          endDate: ''
-        })
+        setAssignData({ userId: '', shiftId: '', startDate: new Date().toISOString().split('T')[0], endDate: '' })
         fetchData()
       } else {
         const data = await res.json()
@@ -177,27 +158,14 @@ export default function ShiftManagement() {
   }
 
   const resetForm = () => {
-    setFormData({
-      name: '',
-      code: '',
-      startTime: '09:00',
-      endTime: '17:00',
-      breakMinutes: 60,
-      graceMinutes: 15,
-      color: '#3b82f6'
-    })
+    setFormData({ name: '', code: '', startTime: '09:00', endTime: '17:00', breakMinutes: 60, graceMinutes: 15, color: '#3b82f6' })
   }
 
   const openEdit = (shift) => {
     setEditingShift(shift)
     setFormData({
-      name: shift.name,
-      code: shift.code,
-      startTime: shift.startTime,
-      endTime: shift.endTime,
-      breakMinutes: shift.breakMinutes,
-      graceMinutes: shift.graceMinutes,
-      color: shift.color
+      name: shift.name, code: shift.code, startTime: shift.startTime, endTime: shift.endTime,
+      breakMinutes: shift.breakMinutes, graceMinutes: shift.graceMinutes, color: shift.color
     })
     setShowAddModal(true)
   }
@@ -206,7 +174,7 @@ export default function ShiftManagement() {
     const [sh, sm] = start.split(':').map(Number)
     const [eh, em] = end.split(':').map(Number)
     let totalMins = (eh * 60 + em) - (sh * 60 + sm)
-    if (totalMins < 0) totalMins += 24 * 60 // Handle overnight shifts
+    if (totalMins < 0) totalMins += 24 * 60
     totalMins -= breakMins
     return (totalMins / 60).toFixed(1)
   }
@@ -220,6 +188,7 @@ export default function ShiftManagement() {
   }
 
   return (
+    <ProtectedPage module="shifts" action="read">
     <div className="min-h-screen bg-gradient-to-br from-slate-50 to-slate-100 dark:from-slate-900 dark:via-slate-800 dark:to-slate-900">
       {/* Background */}
       <div className="fixed inset-0 overflow-hidden pointer-events-none">
@@ -281,42 +250,23 @@ export default function ShiftManagement() {
                   <div key={shift.id} className="p-4 hover:bg-slate-50 dark:hover:bg-slate-700/50 transition-colors">
                     <div className="flex items-center justify-between">
                       <div className="flex items-center gap-3">
-                        <div 
-                          className="w-10 h-10 rounded-xl flex items-center justify-center text-white font-bold"
-                          style={{ backgroundColor: shift.color }}
-                        >
+                        <div className="w-10 h-10 rounded-xl flex items-center justify-center text-white font-bold" style={{ backgroundColor: shift.color }}>
                           {shift.code}
                         </div>
                         <div>
                           <h3 className="font-semibold text-slate-900 dark:text-white">{shift.name}</h3>
-                          <p className="text-sm text-slate-500">
-                            {shift.startTime} - {shift.endTime} ({calculateShiftHours(shift.startTime, shift.endTime, shift.breakMinutes)}h)
-                          </p>
+                          <p className="text-sm text-slate-500">{shift.startTime} - {shift.endTime} ({calculateShiftHours(shift.startTime, shift.endTime, shift.breakMinutes)}h)</p>
                         </div>
                       </div>
                       <div className="flex items-center gap-2">
-                        <span className={'px-2 py-1 text-xs rounded-lg ' + (
-                          shift.isActive
-                            ? 'bg-emerald-100 dark:bg-emerald-900/30 text-emerald-700 dark:text-emerald-400'
-                            : 'bg-slate-100 dark:bg-slate-700 text-slate-500'
-                        )}>
+                        <span className={`px-2 py-1 text-xs rounded-lg ${shift.isActive ? 'bg-emerald-100 dark:bg-emerald-900/30 text-emerald-700 dark:text-emerald-400' : 'bg-slate-100 dark:bg-slate-700 text-slate-500'}`}>
                           {shift.isActive ? 'Active' : 'Inactive'}
                         </span>
-                        <button
-                          onClick={() => openEdit(shift)}
-                          className="p-2 hover:bg-slate-100 dark:hover:bg-slate-700 rounded-lg transition-colors"
-                        >
-                          <svg className="w-4 h-4 text-slate-500" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                            <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M15.232 5.232l3.536 3.536m-2.036-5.036a2.5 2.5 0 113.536 3.536L6.5 21.036H3v-3.572L16.732 3.732z" />
-                          </svg>
+                        <button onClick={() => openEdit(shift)} className="p-2 hover:bg-slate-100 dark:hover:bg-slate-700 rounded-lg transition-colors">
+                          <svg className="w-4 h-4 text-slate-500" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M15.232 5.232l3.536 3.536m-2.036-5.036a2.5 2.5 0 113.536 3.536L6.5 21.036H3v-3.572L16.732 3.732z" /></svg>
                         </button>
-                        <button
-                          onClick={() => handleDelete(shift.id)}
-                          className="p-2 hover:bg-red-100 dark:hover:bg-red-900/30 rounded-lg transition-colors"
-                        >
-                          <svg className="w-4 h-4 text-red-500" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                            <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M19 7l-.867 12.142A2 2 0 0116.138 21H7.862a2 2 0 01-1.995-1.858L5 7m5 4v6m4-6v6m1-10V4a1 1 0 00-1-1h-4a1 1 0 00-1 1v3M4 7h16" />
-                          </svg>
+                        <button onClick={() => handleDelete(shift.id)} className="p-2 hover:bg-red-100 dark:hover:bg-red-900/30 rounded-lg transition-colors">
+                          <svg className="w-4 h-4 text-red-500" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M19 7l-.867 12.142A2 2 0 0116.138 21H7.862a2 2 0 01-1.995-1.858L5 7m5 4v6m4-6v6m1-10V4a1 1 0 00-1-1h-4a1 1 0 00-1 1v3M4 7h16" /></svg>
                         </button>
                       </div>
                     </div>
@@ -334,18 +284,13 @@ export default function ShiftManagement() {
           <div className="bg-white dark:bg-slate-800 rounded-2xl border border-slate-200 dark:border-slate-700 shadow-lg overflow-hidden">
             <div className="px-6 py-4 border-b border-slate-200 dark:border-slate-700 flex items-center justify-between">
               <h2 className="text-lg font-semibold text-slate-900 dark:text-white">Assignments ({userShifts.length})</h2>
-              <button
-                onClick={() => setShowAssignModal(true)}
-                className="px-3 py-1.5 bg-blue-500 text-white text-sm rounded-lg hover:bg-blue-600 transition-colors"
-              >
+              <button onClick={() => setShowAssignModal(true)} className="px-3 py-1.5 bg-blue-500 text-white text-sm rounded-lg hover:bg-blue-600 transition-colors">
                 Assign Shift
               </button>
             </div>
             <div className="divide-y divide-slate-200 dark:divide-slate-700 max-h-[500px] overflow-y-auto">
               {userShifts.length === 0 ? (
-                <div className="p-8 text-center text-slate-500">
-                  No shift assignments yet.
-                </div>
+                <div className="p-8 text-center text-slate-500">No shift assignments yet.</div>
               ) : (
                 userShifts.map(assignment => (
                   <div key={assignment.id} className="p-4 hover:bg-slate-50 dark:hover:bg-slate-700/50 transition-colors">
@@ -357,10 +302,7 @@ export default function ShiftManagement() {
                         <div>
                           <h3 className="font-medium text-slate-900 dark:text-white">{assignment.user?.name}</h3>
                           <div className="flex items-center gap-2 text-sm">
-                            <span 
-                              className="px-2 py-0.5 rounded text-white text-xs font-medium"
-                              style={{ backgroundColor: assignment.shift?.color }}
-                            >
+                            <span className="px-2 py-0.5 rounded text-white text-xs font-medium" style={{ backgroundColor: assignment.shift?.color }}>
                               {assignment.shift?.name}
                             </span>
                             <span className="text-slate-500">
@@ -370,13 +312,8 @@ export default function ShiftManagement() {
                           </div>
                         </div>
                       </div>
-                      <button
-                        onClick={() => handleRemoveAssignment(assignment.id)}
-                        className="p-2 hover:bg-red-100 dark:hover:bg-red-900/30 rounded-lg transition-colors"
-                      >
-                        <svg className="w-4 h-4 text-red-500" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                          <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M6 18L18 6M6 6l12 12" />
-                        </svg>
+                      <button onClick={() => handleRemoveAssignment(assignment.id)} className="p-2 hover:bg-red-100 dark:hover:bg-red-900/30 rounded-lg transition-colors">
+                        <svg className="w-4 h-4 text-red-500" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M6 18L18 6M6 6l12 12" /></svg>
                       </button>
                     </div>
                   </div>
@@ -392,127 +329,56 @@ export default function ShiftManagement() {
         <div className="fixed inset-0 bg-black/50 backdrop-blur-sm flex items-center justify-center z-50 p-4">
           <div className="bg-white dark:bg-slate-800 rounded-2xl shadow-2xl w-full max-w-md overflow-hidden">
             <div className="px-6 py-4 border-b border-slate-200 dark:border-slate-700 flex items-center justify-between">
-              <h2 className="text-lg font-bold text-slate-900 dark:text-white">
-                {editingShift ? 'Edit Shift' : 'Add New Shift'}
-              </h2>
+              <h2 className="text-lg font-bold text-slate-900 dark:text-white">{editingShift ? 'Edit Shift' : 'Add New Shift'}</h2>
               <button onClick={() => { setShowAddModal(false); setEditingShift(null) }} className="p-2 hover:bg-slate-100 dark:hover:bg-slate-700 rounded-lg">
-                <svg className="w-5 h-5 text-slate-500" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                  <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M6 18L18 6M6 6l12 12" />
-                </svg>
+                <svg className="w-5 h-5 text-slate-500" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M6 18L18 6M6 6l12 12" /></svg>
               </button>
             </div>
             <form onSubmit={handleSubmit} className="p-6 space-y-4">
               <div className="grid grid-cols-2 gap-4">
                 <div>
                   <label className="block text-sm font-medium text-slate-700 dark:text-slate-300 mb-1">Shift Name</label>
-                  <input
-                    type="text"
-                    value={formData.name}
-                    onChange={(e) => setFormData({ ...formData, name: e.target.value })}
-                    placeholder="Morning"
-                    required
-                    className="w-full px-4 py-2 bg-slate-100 dark:bg-slate-700 border-0 rounded-xl"
-                  />
+                  <input type="text" value={formData.name} onChange={(e) => setFormData({ ...formData, name: e.target.value })} placeholder="Morning" required className="w-full px-4 py-2 bg-slate-100 dark:bg-slate-700 border-0 rounded-xl text-slate-900 dark:text-white" />
                 </div>
                 <div>
                   <label className="block text-sm font-medium text-slate-700 dark:text-slate-300 mb-1">Code</label>
-                  <input
-                    type="text"
-                    value={formData.code}
-                    onChange={(e) => setFormData({ ...formData, code: e.target.value.toUpperCase() })}
-                    placeholder="MOR"
-                    maxLength={4}
-                    required
-                    className="w-full px-4 py-2 bg-slate-100 dark:bg-slate-700 border-0 rounded-xl uppercase"
-                  />
+                  <input type="text" value={formData.code} onChange={(e) => setFormData({ ...formData, code: e.target.value.toUpperCase() })} placeholder="MOR" maxLength={4} required className="w-full px-4 py-2 bg-slate-100 dark:bg-slate-700 border-0 rounded-xl uppercase text-slate-900 dark:text-white" />
                 </div>
               </div>
-
               <div className="grid grid-cols-2 gap-4">
                 <div>
                   <label className="block text-sm font-medium text-slate-700 dark:text-slate-300 mb-1">Start Time</label>
-                  <input
-                    type="time"
-                    value={formData.startTime}
-                    onChange={(e) => setFormData({ ...formData, startTime: e.target.value })}
-                    required
-                    className="w-full px-4 py-2 bg-slate-100 dark:bg-slate-700 border-0 rounded-xl"
-                  />
+                  <input type="time" value={formData.startTime} onChange={(e) => setFormData({ ...formData, startTime: e.target.value })} required className="w-full px-4 py-2 bg-slate-100 dark:bg-slate-700 border-0 rounded-xl text-slate-900 dark:text-white" />
                 </div>
                 <div>
                   <label className="block text-sm font-medium text-slate-700 dark:text-slate-300 mb-1">End Time</label>
-                  <input
-                    type="time"
-                    value={formData.endTime}
-                    onChange={(e) => setFormData({ ...formData, endTime: e.target.value })}
-                    required
-                    className="w-full px-4 py-2 bg-slate-100 dark:bg-slate-700 border-0 rounded-xl"
-                  />
+                  <input type="time" value={formData.endTime} onChange={(e) => setFormData({ ...formData, endTime: e.target.value })} required className="w-full px-4 py-2 bg-slate-100 dark:bg-slate-700 border-0 rounded-xl text-slate-900 dark:text-white" />
                 </div>
               </div>
-
               <div className="grid grid-cols-2 gap-4">
                 <div>
                   <label className="block text-sm font-medium text-slate-700 dark:text-slate-300 mb-1">Break (mins)</label>
-                  <input
-                    type="number"
-                    value={formData.breakMinutes}
-                    onChange={(e) => setFormData({ ...formData, breakMinutes: parseInt(e.target.value) || 0 })}
-                    min="0"
-                    max="180"
-                    className="w-full px-4 py-2 bg-slate-100 dark:bg-slate-700 border-0 rounded-xl"
-                  />
+                  <input type="number" value={formData.breakMinutes} onChange={(e) => setFormData({ ...formData, breakMinutes: parseInt(e.target.value) || 0 })} min="0" max="180" className="w-full px-4 py-2 bg-slate-100 dark:bg-slate-700 border-0 rounded-xl text-slate-900 dark:text-white" />
                 </div>
                 <div>
                   <label className="block text-sm font-medium text-slate-700 dark:text-slate-300 mb-1">Grace (mins)</label>
-                  <input
-                    type="number"
-                    value={formData.graceMinutes}
-                    onChange={(e) => setFormData({ ...formData, graceMinutes: parseInt(e.target.value) || 0 })}
-                    min="0"
-                    max="60"
-                    className="w-full px-4 py-2 bg-slate-100 dark:bg-slate-700 border-0 rounded-xl"
-                  />
+                  <input type="number" value={formData.graceMinutes} onChange={(e) => setFormData({ ...formData, graceMinutes: parseInt(e.target.value) || 0 })} min="0" max="60" className="w-full px-4 py-2 bg-slate-100 dark:bg-slate-700 border-0 rounded-xl text-slate-900 dark:text-white" />
                 </div>
               </div>
-
               <div>
                 <label className="block text-sm font-medium text-slate-700 dark:text-slate-300 mb-1">Color</label>
                 <div className="flex items-center gap-3">
-                  <input
-                    type="color"
-                    value={formData.color}
-                    onChange={(e) => setFormData({ ...formData, color: e.target.value })}
-                    className="w-12 h-10 rounded-lg cursor-pointer"
-                  />
+                  <input type="color" value={formData.color} onChange={(e) => setFormData({ ...formData, color: e.target.value })} className="w-12 h-10 rounded-lg cursor-pointer" />
                   <div className="flex gap-2">
                     {['#3b82f6', '#10b981', '#f59e0b', '#ef4444', '#8b5cf6', '#ec4899'].map(color => (
-                      <button
-                        key={color}
-                        type="button"
-                        onClick={() => setFormData({ ...formData, color })}
-                        className={'w-8 h-8 rounded-lg transition-transform ' + (formData.color === color ? 'scale-110 ring-2 ring-offset-2 ring-slate-400' : '')}
-                        style={{ backgroundColor: color }}
-                      />
+                      <button key={color} type="button" onClick={() => setFormData({ ...formData, color })} className={`w-8 h-8 rounded-lg transition-transform ${formData.color === color ? 'scale-110 ring-2 ring-offset-2 ring-slate-400' : ''}`} style={{ backgroundColor: color }} />
                     ))}
                   </div>
                 </div>
               </div>
-
               <div className="flex gap-3 pt-4">
-                <button
-                  type="button"
-                  onClick={() => { setShowAddModal(false); setEditingShift(null) }}
-                  className="flex-1 px-4 py-3 bg-slate-200 dark:bg-slate-700 text-slate-700 dark:text-slate-300 rounded-xl font-medium"
-                >
-                  Cancel
-                </button>
-                <button
-                  type="submit"
-                  className="flex-1 px-4 py-3 bg-gradient-to-r from-orange-500 to-amber-500 text-white rounded-xl font-medium"
-                >
-                  {editingShift ? 'Update' : 'Create'} Shift
-                </button>
+                <button type="button" onClick={() => { setShowAddModal(false); setEditingShift(null) }} className="flex-1 px-4 py-3 bg-slate-200 dark:bg-slate-700 text-slate-700 dark:text-slate-300 rounded-xl font-medium">Cancel</button>
+                <button type="submit" className="flex-1 px-4 py-3 bg-gradient-to-r from-orange-500 to-amber-500 text-white rounded-xl font-medium">{editingShift ? 'Update' : 'Create'} Shift</button>
               </div>
             </form>
           </div>
@@ -526,83 +392,43 @@ export default function ShiftManagement() {
             <div className="px-6 py-4 border-b border-slate-200 dark:border-slate-700 flex items-center justify-between">
               <h2 className="text-lg font-bold text-slate-900 dark:text-white">Assign Shift</h2>
               <button onClick={() => setShowAssignModal(false)} className="p-2 hover:bg-slate-100 dark:hover:bg-slate-700 rounded-lg">
-                <svg className="w-5 h-5 text-slate-500" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                  <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M6 18L18 6M6 6l12 12" />
-                </svg>
+                <svg className="w-5 h-5 text-slate-500" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M6 18L18 6M6 6l12 12" /></svg>
               </button>
             </div>
             <form onSubmit={handleAssign} className="p-6 space-y-4">
               <div>
                 <label className="block text-sm font-medium text-slate-700 dark:text-slate-300 mb-1">Employee</label>
-                <select
-                  value={assignData.userId}
-                  onChange={(e) => setAssignData({ ...assignData, userId: e.target.value })}
-                  required
-                  className="w-full px-4 py-2 bg-slate-100 dark:bg-slate-700 border-0 rounded-xl"
-                >
+                <select value={assignData.userId} onChange={(e) => setAssignData({ ...assignData, userId: e.target.value })} required className="w-full px-4 py-2 bg-slate-100 dark:bg-slate-700 border-0 rounded-xl text-slate-900 dark:text-white">
                   <option value="">Select employee...</option>
-                  {users.map(user => (
-                    <option key={user.id} value={user.id}>{user.name}</option>
-                  ))}
+                  {users.map(user => (<option key={user.id} value={user.id}>{user.name}</option>))}
                 </select>
               </div>
-
               <div>
                 <label className="block text-sm font-medium text-slate-700 dark:text-slate-300 mb-1">Shift</label>
-                <select
-                  value={assignData.shiftId}
-                  onChange={(e) => setAssignData({ ...assignData, shiftId: e.target.value })}
-                  required
-                  className="w-full px-4 py-2 bg-slate-100 dark:bg-slate-700 border-0 rounded-xl"
-                >
+                <select value={assignData.shiftId} onChange={(e) => setAssignData({ ...assignData, shiftId: e.target.value })} required className="w-full px-4 py-2 bg-slate-100 dark:bg-slate-700 border-0 rounded-xl text-slate-900 dark:text-white">
                   <option value="">Select shift...</option>
-                  {shifts.filter(s => s.isActive).map(shift => (
-                    <option key={shift.id} value={shift.id}>{shift.name} ({shift.startTime} - {shift.endTime})</option>
-                  ))}
+                  {shifts.filter(s => s.isActive).map(shift => (<option key={shift.id} value={shift.id}>{shift.name} ({shift.startTime} - {shift.endTime})</option>))}
                 </select>
               </div>
-
               <div className="grid grid-cols-2 gap-4">
                 <div>
                   <label className="block text-sm font-medium text-slate-700 dark:text-slate-300 mb-1">Start Date</label>
-                  <input
-                    type="date"
-                    value={assignData.startDate}
-                    onChange={(e) => setAssignData({ ...assignData, startDate: e.target.value })}
-                    required
-                    className="w-full px-4 py-2 bg-slate-100 dark:bg-slate-700 border-0 rounded-xl"
-                  />
+                  <input type="date" value={assignData.startDate} onChange={(e) => setAssignData({ ...assignData, startDate: e.target.value })} required className="w-full px-4 py-2 bg-slate-100 dark:bg-slate-700 border-0 rounded-xl text-slate-900 dark:text-white" />
                 </div>
                 <div>
                   <label className="block text-sm font-medium text-slate-700 dark:text-slate-300 mb-1">End Date (opt)</label>
-                  <input
-                    type="date"
-                    value={assignData.endDate}
-                    onChange={(e) => setAssignData({ ...assignData, endDate: e.target.value })}
-                    className="w-full px-4 py-2 bg-slate-100 dark:bg-slate-700 border-0 rounded-xl"
-                  />
+                  <input type="date" value={assignData.endDate} onChange={(e) => setAssignData({ ...assignData, endDate: e.target.value })} className="w-full px-4 py-2 bg-slate-100 dark:bg-slate-700 border-0 rounded-xl text-slate-900 dark:text-white" />
                 </div>
               </div>
-
               <div className="flex gap-3 pt-4">
-                <button
-                  type="button"
-                  onClick={() => setShowAssignModal(false)}
-                  className="flex-1 px-4 py-3 bg-slate-200 dark:bg-slate-700 text-slate-700 dark:text-slate-300 rounded-xl font-medium"
-                >
-                  Cancel
-                </button>
-                <button
-                  type="submit"
-                  className="flex-1 px-4 py-3 bg-blue-500 text-white rounded-xl font-medium hover:bg-blue-600"
-                >
-                  Assign Shift
-                </button>
+                <button type="button" onClick={() => setShowAssignModal(false)} className="flex-1 px-4 py-3 bg-slate-200 dark:bg-slate-700 text-slate-700 dark:text-slate-300 rounded-xl font-medium">Cancel</button>
+                <button type="submit" className="flex-1 px-4 py-3 bg-blue-500 text-white rounded-xl font-medium hover:bg-blue-600">Assign Shift</button>
               </div>
             </form>
           </div>
         </div>
       )}
     </div>
+    </ProtectedPage>
   )
 }

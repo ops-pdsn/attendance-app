@@ -1,8 +1,5 @@
 'use client'
 
-
-
-
 import { useState, useEffect } from 'react'
 import { useSession } from 'next-auth/react'
 import { useRouter } from 'next/navigation'
@@ -11,6 +8,8 @@ import DarkModeToggle from '@/components/DarkModeToggle'
 import UserNav from '@/components/UserNav'
 import NotificationBell from '@/components/NotificationBell'
 import { useToast } from '@/components/Toast'
+import ProtectedPage from '@/components/ProtectedPage'
+
 
 export default function TimeSheetPage() {
   const { data: session, status } = useSession()
@@ -241,6 +240,7 @@ export default function TimeSheetPage() {
   }
 
   return (
+    <ProtectedPage module="timesheet" action="read">
     <div className="min-h-screen bg-gradient-to-br from-slate-50 to-slate-100 dark:from-slate-900 dark:via-slate-800 dark:to-slate-900">
       {/* Background Decoration */}
       <div className="fixed inset-0 overflow-hidden pointer-events-none">
@@ -556,5 +556,6 @@ export default function TimeSheetPage() {
         </div>
       </div>
     </div>
+    </ProtectedPage>
   )
 }

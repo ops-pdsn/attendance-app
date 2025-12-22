@@ -9,30 +9,109 @@ export function ToastProvider({ children }) {
 
   const addToast = useCallback((message, type = 'info', duration = 4000) => {
     const id = Date.now() + Math.random()
-    setToasts(prev => [...prev, { id, message, type, duration }])
-
-    if (duration > 0) {
-      setTimeout(() => {
-        removeToast(id)
-      }, duration)
-    }
-
-    return id
+    setToasts(prev => [...prev, { id, message, type }])
+    
+    setTimeout(() => {
+      setToasts(prev => prev.filter(t => t.id !== id))
+    }, duration)
   }, [])
 
-  const removeToast = useCallback((id) => {
+  const toast = {
+    success: (msg) => addToast(msg, 'success'),
+    error: (msg) => addToast(msg, 'error'),
+    warning: (msg) => addToast(msg, 'warning'),
+    info: (msg) => addToast(msg, 'info')
+  }
+
+  const removeToast = (id) => {
     setToasts(prev => prev.filter(t => t.id !== id))
-  }, [])
-
-  const success = useCallback((message, duration) => addToast(message, 'success', duration), [addToast])
-  const error = useCallback((message, duration) => addToast(message, 'error', duration), [addToast])
-  const warning = useCallback((message, duration) => addToast(message, 'warning', duration), [addToast])
-  const info = useCallback((message, duration) => addToast(message, 'info', duration), [addToast])
+  }
 
   return (
-    <ToastContext.Provider value={{ addToast, removeToast, success, error, warning, info }}>
+    <ToastContext.Provider value={toast}>
       {children}
-      <ToastContainer toasts={toasts} removeToast={removeToast} />
+      
+      {/* Toast Container - CENTERED */}
+      <div className="fixed top-4 left-1/2 -translate-x-1/2 z-[9999] flex flex-col items-center gap-2 pointer-events-none">
+        {toasts.map(t => (
+          <div
+            key={t.id}
+            className={`
+              pointer-events-auto
+              flex items-center gap-3 
+              px-4 py-3 
+              rounded-xl 
+              shadow-lg 
+              backdrop-blur-sm
+              min-w-[280px] max-w-[400px]
+              animate-slide-down
+              ${t.type === 'success' 
+                ? 'bg-emerald-500/95 text-white' 
+                : t.type === 'error' 
+                ? 'bg-red-500/95 text-white' 
+                : t.type === 'warning' 
+                ? 'bg-amber-500/95 text-white' 
+                : 'bg-slate-800/95 text-white'
+              }
+            `}
+            onClick={() => removeToast(t.id)}
+          >
+            {/* Icon */}
+            <div className="flex-shrink-0">
+              {t.type === 'success' && (
+                <svg className="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                  <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M5 13l4 4L19 7" />
+                </svg>
+              )}
+              {t.type === 'error' && (
+                <svg className="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                  <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M6 18L18 6M6 6l12 12" />
+                </svg>
+              )}
+              {t.type === 'warning' && (
+                <svg className="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                  <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M12 9v2m0 4h.01m-6.938 4h13.856c1.54 0 2.502-1.667 1.732-3L13.732 4c-.77-1.333-2.694-1.333-3.464 0L3.34 16c-.77 1.333.192 3 1.732 3z" />
+                </svg>
+              )}
+              {t.type === 'info' && (
+                <svg className="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                  <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M13 16h-1v-4h-1m1-4h.01M21 12a9 9 0 11-18 0 9 9 0 0118 0z" />
+                </svg>
+              )}
+            </div>
+            
+            {/* Message */}
+            <p className="text-sm font-medium flex-1">{t.message}</p>
+            
+            {/* Close */}
+            <button 
+              onClick={(e) => { e.stopPropagation(); removeToast(t.id) }}
+              className="flex-shrink-0 p-1 hover:bg-white/20 rounded-lg transition-colors"
+            >
+              <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M6 18L18 6M6 6l12 12" />
+              </svg>
+            </button>
+          </div>
+        ))}
+      </div>
+
+      {/* Animation Styles */}
+      <style jsx global>{`
+        @keyframes slide-down {
+          from {
+            opacity: 0;
+            transform: translateY(-20px);
+          }
+          to {
+            opacity: 1;
+            transform: translateY(0);
+          }
+        }
+        .animate-slide-down {
+          animation: slide-down 0.3s ease-out;
+        }
+      `}</style>
     </ToastContext.Provider>
   )
 }
@@ -40,93 +119,15 @@ export function ToastProvider({ children }) {
 export function useToast() {
   const context = useContext(ToastContext)
   if (!context) {
-    throw new Error('useToast must be used within a ToastProvider')
+    // Return dummy toast if outside provider
+    return {
+      success: () => {},
+      error: () => {},
+      warning: () => {},
+      info: () => {}
+    }
   }
   return context
 }
 
-function ToastContainer({ toasts, removeToast }) {
-  return (
-    <div className="fixed top-4 right-4 z-[100] flex flex-col gap-3 max-w-sm w-full pointer-events-none">
-      {toasts.map((toast) => (
-        <ToastItem key={toast.id} toast={toast} onClose={() => removeToast(toast.id)} />
-      ))}
-    </div>
-  )
-}
-
-function ToastItem({ toast, onClose }) {
-  const icons = {
-    success: (
-      <svg className="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-        <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M9 12l2 2 4-4m6 2a9 9 0 11-18 0 9 9 0 0118 0z" />
-      </svg>
-    ),
-    error: (
-      <svg className="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-        <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M10 14l2-2m0 0l2-2m-2 2l-2-2m2 2l2 2m7-2a9 9 0 11-18 0 9 9 0 0118 0z" />
-      </svg>
-    ),
-    warning: (
-      <svg className="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-        <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M12 9v2m0 4h.01m-6.938 4h13.856c1.54 0 2.502-1.667 1.732-3L13.732 4c-.77-1.333-2.694-1.333-3.464 0L3.34 16c-.77 1.333.192 3 1.732 3z" />
-      </svg>
-    ),
-    info: (
-      <svg className="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-        <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M13 16h-1v-4h-1m1-4h.01M21 12a9 9 0 11-18 0 9 9 0 0118 0z" />
-      </svg>
-    )
-  }
-
-  const styles = {
-    success: 'bg-emerald-500/10 border-emerald-500/50 text-emerald-400',
-    error: 'bg-red-500/10 border-red-500/50 text-red-400',
-    warning: 'bg-amber-500/10 border-amber-500/50 text-amber-400',
-    info: 'bg-blue-500/10 border-blue-500/50 text-blue-400'
-  }
-
-  const iconBg = {
-    success: 'bg-emerald-500/20',
-    error: 'bg-red-500/20',
-    warning: 'bg-amber-500/20',
-    info: 'bg-blue-500/20'
-  }
-
-  return (
-    <div 
-      className={`pointer-events-auto backdrop-blur-xl border rounded-2xl p-4 shadow-2xl animate-slide-in flex items-start gap-3 ${styles[toast.type]}`}
-      style={{
-        animation: 'slideIn 0.3s ease-out'
-      }}
-    >
-      <div className={`flex-shrink-0 w-8 h-8 rounded-full flex items-center justify-center ${iconBg[toast.type]}`}>
-        {icons[toast.type]}
-      </div>
-      <div className="flex-1 min-w-0">
-        <p className="text-sm font-medium text-white">{toast.message}</p>
-      </div>
-      <button
-        onClick={onClose}
-        className="flex-shrink-0 p-1 hover:bg-white/10 rounded-lg transition-colors"
-      >
-        <svg className="w-4 h-4 text-slate-400" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-          <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M6 18L18 6M6 6l12 12" />
-        </svg>
-      </button>
-
-      <style jsx>{`
-        @keyframes slideIn {
-          from {
-            opacity: 0;
-            transform: translateX(100%);
-          }
-          to {
-            opacity: 1;
-            transform: translateX(0);
-          }
-        }
-      `}</style>
-    </div>
-  )
-}
+export default ToastProvider

@@ -1,5 +1,5 @@
 import { NextResponse } from 'next/server'
-import { prisma } from '@/lib/db'
+import prisma from '@/lib/db'
 import bcrypt from 'bcryptjs'
 
 export const dynamic = 'force-dynamic'
@@ -24,7 +24,7 @@ export async function POST(request) {
       )
     }
 
-    // Check if user already exists
+    // Check if email already exists
     const existingUser = await prisma.user.findUnique({
       where: { email: email.toLowerCase() }
     })
@@ -49,43 +49,48 @@ export async function POST(request) {
         name,
         email: email.toLowerCase(),
         password: hashedPassword,
+        role: 'employee', // Default role for self-registration
         department: department || null,
         phone: phone || null,
         employeeId,
-        role: 'employee' // Default role
+        isActive: true
       },
       select: {
         id: true,
         name: true,
         email: true,
-        department: true,
-        employeeId: true,
         role: true,
-        createdAt: true
+        department: true,
+        employeeId: true
       }
     })
 
-    // Create default leave balances if leave types exist
+    // Create default leave balances for the new user
     try {
       const leaveTypes = await prisma.leaveType.findMany()
+      const currentYear = new Date().getFullYear()
+
       if (leaveTypes.length > 0) {
         await prisma.leaveBalance.createMany({
-          data: leaveTypes.map(type => ({
+          data: leaveTypes.map(lt => ({
             userId: user.id,
-            leaveTypeId: type.id,
-            total: type.defaultDays,
+            leaveTypeId: lt.id,
+            year: currentYear,
+            total: lt.defaultDays,
             used: 0,
             pending: 0,
-            available: type.defaultDays
-          }))
+            carryForward: 0
+          })),
+          skipDuplicates: true
         })
       }
     } catch (e) {
-      // Leave balance creation is optional, ignore errors
-      console.log('Could not create leave balances:', e.message)
+      // Silently skip if leave balance creation fails
+      console.log('Leave balance creation skipped:', e.message)
     }
 
     return NextResponse.json({
+      success: true,
       message: 'Account created successfully',
       user
     }, { status: 201 })

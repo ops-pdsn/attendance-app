@@ -2,61 +2,109 @@
 @tailwind components;
 @tailwind utilities;
 
-* {
-  box-sizing: border-box;
-  margin: 0;
-  padding: 0;
+/* ===== BASE STYLES ===== */
+:root {
+  --background: #ffffff;
+  --foreground: #0f172a;
+}
+
+@media (prefers-color-scheme: dark) {
+  :root {
+    --background: #0f172a;
+    --foreground: #f8fafc;
+  }
 }
 
 body {
-  font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', 'Roboto', 'Oxygen',
-    'Ubuntu', 'Cantarell', 'Fira Sans', 'Droid Sans', 'Helvetica Neue',
-    sans-serif;
-  -webkit-font-smoothing: antialiased;
-  -moz-osx-font-smoothing: grayscale;
+  color: var(--foreground);
+  background: var(--background);
+  font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, 'Helvetica Neue', Arial, sans-serif;
 }
 
-/* Mobile touch improvements */
-@media (max-width: 768px) {
-  /* Larger tap targets for mobile */
-  button,
-  a,
-  input[type="checkbox"],
-  input[type="radio"] {
-    min-height: 44px;
-    min-width: 44px;
-  }
-  
-  /* Better text readability on mobile */
-  body {
-    font-size: 16px;
-    line-height: 1.5;
-  }
-  
-  /* Prevent zoom on input focus (iOS) */
-  input[type="text"],
-  input[type="date"],
-  input[type="time"],
-  textarea,
-  select {
-    font-size: 16px;
-  }
-  
-  /* Smooth scrolling on iOS */
-  * {
-    -webkit-overflow-scrolling: touch;
+/* ===== CHECKBOX FIXES ===== */
+/* Standard checkbox - consistent size across all devices */
+input[type="checkbox"] {
+  width: 16px !important;
+  height: 16px !important;
+  min-width: 16px !important;
+  min-height: 16px !important;
+  max-width: 16px !important;
+  max-height: 16px !important;
+  cursor: pointer;
+  accent-color: #3b82f6;
+  border-radius: 4px;
+  flex-shrink: 0;
+}
+
+/* Mobile checkbox - slightly larger for touch but not oversized */
+@media (max-width: 640px) {
+  input[type="checkbox"] {
+    width: 18px !important;
+    height: 18px !important;
+    min-width: 18px !important;
+    min-height: 18px !important;
+    max-width: 18px !important;
+    max-height: 18px !important;
   }
 }
 
-/* Line clamp utility */
-.line-clamp-2 {
-  display: -webkit-box;
-  -webkit-line-clamp: 2;
-  -webkit-box-orient: vertical;
-  overflow: hidden;
+/* Custom checkbox styling */
+input[type="checkbox"]:checked {
+  background-color: #3b82f6;
+  border-color: #3b82f6;
 }
 
-/* Custom scrollbar */
+input[type="checkbox"]:focus {
+  outline: 2px solid #3b82f6;
+  outline-offset: 2px;
+}
+
+/* ===== INPUT FIELD FIXES FOR DARK MODE ===== */
+/* Fix black text on dark mode inputs */
+.dark input,
+.dark textarea,
+.dark select {
+  color: #f8fafc !important;
+  background-color: #334155 !important;
+}
+
+.dark input::placeholder,
+.dark textarea::placeholder {
+  color: #94a3b8 !important;
+}
+
+/* Input focus states */
+.dark input:focus,
+.dark textarea:focus,
+.dark select:focus {
+  background-color: #1e293b !important;
+  border-color: #3b82f6 !important;
+}
+
+/* Autofill fix for dark mode */
+.dark input:-webkit-autofill,
+.dark input:-webkit-autofill:hover,
+.dark input:-webkit-autofill:focus {
+  -webkit-box-shadow: 0 0 0 1000px #334155 inset !important;
+  -webkit-text-fill-color: #f8fafc !important;
+  caret-color: #f8fafc !important;
+}
+
+/* Light mode autofill */
+input:-webkit-autofill,
+input:-webkit-autofill:hover,
+input:-webkit-autofill:focus {
+  -webkit-box-shadow: 0 0 0 1000px #f8fafc inset !important;
+  -webkit-text-fill-color: #0f172a !important;
+}
+
+/* ===== SELECT DROPDOWN FIXES ===== */
+.dark select option {
+  background-color: #1e293b;
+  color: #f8fafc;
+}
+
+/* ===== SCROLLBAR STYLING ===== */
 ::-webkit-scrollbar {
   width: 8px;
   height: 8px;
@@ -67,138 +115,123 @@ body {
 }
 
 ::-webkit-scrollbar-thumb {
-  background: rgba(156, 163, 175, 0.5);
+  background: #cbd5e1;
   border-radius: 4px;
 }
 
 ::-webkit-scrollbar-thumb:hover {
-  background: rgba(156, 163, 175, 0.7);
-}
-
-/* Dark mode scrollbar */
-.dark ::-webkit-scrollbar-thumb {
-  background: rgba(75, 85, 99, 0.5);
-}
-
-.dark ::-webkit-scrollbar-thumb:hover {
-  background: rgba(75, 85, 99, 0.7);
-}
-
-/* Custom Scrollbar */
-::-webkit-scrollbar {
-  width: 8px;
-  height: 8px;
-}
-
-::-webkit-scrollbar-track {
-  background: transparent;
-}
-
-::-webkit-scrollbar-thumb {
   background: #94a3b8;
-  border-radius: 4px;
 }
 
 .dark ::-webkit-scrollbar-thumb {
   background: #475569;
 }
 
-::-webkit-scrollbar-thumb:hover {
-  background: #64748b;
-}
-
 .dark ::-webkit-scrollbar-thumb:hover {
   background: #64748b;
 }
 
-/* Selection Color */
-::selection {
-  background: #3b82f6;
-  color: white;
+/* ===== MODAL BACKDROP ===== */
+.modal-backdrop {
+  backdrop-filter: blur(4px);
+  -webkit-backdrop-filter: blur(4px);
 }
 
-/* Smooth transitions for theme changes */
-* {
-  transition-property: background-color, border-color, color;
-  transition-timing-function: ease-in-out;
-  transition-duration: 150ms;
+/* ===== BUTTON FOCUS STATES ===== */
+button:focus-visible {
+  outline: 2px solid #3b82f6;
+  outline-offset: 2px;
 }
 
-/* Animation utilities */
-@keyframes float {
-  0%, 100% { transform: translateY(0); }
-  50% { transform: translateY(-10px); }
+/* ===== TOAST ANIMATION ===== */
+@keyframes slide-down {
+  from {
+    opacity: 0;
+    transform: translateY(-20px);
+  }
+  to {
+    opacity: 1;
+    transform: translateY(0);
+  }
 }
 
-@keyframes pulse-glow {
-  0%, 100% { box-shadow: 0 0 20px rgba(59, 130, 246, 0.3); }
-  50% { box-shadow: 0 0 40px rgba(59, 130, 246, 0.6); }
+.animate-slide-down {
+  animation: slide-down 0.3s ease-out;
 }
 
-@keyframes shimmer {
-  0% { background-position: -200% 0; }
-  100% { background-position: 200% 0; }
+/* ===== TABLE FIXES ===== */
+.dark table th,
+.dark table td {
+  border-color: #334155;
 }
 
-.animate-float {
-  animation: float 3s ease-in-out infinite;
+/* ===== CARD HOVER EFFECTS ===== */
+.card-hover {
+  transition: transform 0.2s ease, box-shadow 0.2s ease;
 }
 
-.animate-pulse-glow {
-  animation: pulse-glow 2s ease-in-out infinite;
+.card-hover:hover {
+  transform: translateY(-2px);
+  box-shadow: 0 10px 25px -5px rgba(0, 0, 0, 0.1);
 }
 
-.animate-shimmer {
-  background: linear-gradient(
-    90deg,
-    transparent,
-    rgba(255, 255, 255, 0.1),
-    transparent
-  );
-  background-size: 200% 100%;
-  animation: shimmer 2s infinite;
-}
-
-/* Glass morphism utilities */
-.glass {
-  background: rgba(255, 255, 255, 0.7);
-  backdrop-filter: blur(12px);
-  -webkit-backdrop-filter: blur(12px);
-}
-
-.dark .glass {
-  background: rgba(30, 41, 59, 0.7);
-}
-
-/* Gradient text */
+/* ===== GRADIENT TEXT ===== */
 .gradient-text {
-  background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
+  background: linear-gradient(135deg, #3b82f6 0%, #8b5cf6 100%);
   -webkit-background-clip: text;
   -webkit-text-fill-color: transparent;
   background-clip: text;
 }
 
-/* Better focus states */
-*:focus-visible {
-  outline: 2px solid #3b82f6;
-  outline-offset: 2px;
+/* ===== LOADING SPINNER ===== */
+.spinner {
+  border: 2px solid transparent;
+  border-top-color: currentColor;
+  border-radius: 50%;
+  animation: spin 0.8s linear infinite;
 }
 
-/* Button press effect */
-.btn-press:active {
-  transform: scale(0.98);
+@keyframes spin {
+  to {
+    transform: rotate(360deg);
+  }
 }
 
-/* Card hover effect */
-.card-hover {
-  transition: all 0.3s ease;
+/* ===== MOBILE TOUCH IMPROVEMENTS ===== */
+@media (max-width: 640px) {
+  /* Larger touch targets */
+  button, 
+  a, 
+  input[type="submit"],
+  input[type="button"] {
+    min-height: 44px;
+  }
+  
+  /* Better tap highlighting */
+  button:active,
+  a:active {
+    opacity: 0.8;
+  }
 }
 
-.card-hover:hover {
-  transform: translateY(-4px);
-  box-shadow: 0 20px 40px rgba(0, 0, 0, 0.1);
+/* ===== PREVENT LAYOUT SHIFT ===== */
+img {
+  max-width: 100%;
+  height: auto;
 }
 
-.dark .card-hover:hover {
-  box-shadow: 0 20px 40px rgba(0, 0, 0, 0.3);
+/* ===== SMOOTH TRANSITIONS ===== */
+* {
+  transition-property: background-color, border-color, color, fill, stroke;
+  transition-timing-function: ease;
+  transition-duration: 150ms;
+}
+
+/* Disable transitions for reduced motion preference */
+@media (prefers-reduced-motion: reduce) {
+  * {
+    animation-duration: 0.01ms !important;
+    animation-iteration-count: 1 !important;
+    transition-duration: 0.01ms !important;
+  }
 }

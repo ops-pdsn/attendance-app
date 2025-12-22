@@ -14,24 +14,30 @@ model User {
   email         String   @unique
   password      String
   name          String?
-  role          String   @default("employee")
+  avatar        String?
+  role          String   @default("employee") // admin, hr, manager, employee
   department    String?
-  employeeId    String?
+  employeeId    String?  @unique
   phone         String?
   isActive      Boolean  @default(true)
+
+  // Manager hierarchy
   managerId     String?
   manager       User?    @relation("UserManager", fields: [managerId], references: [id])
   subordinates  User[]   @relation("UserManager")
+
   createdAt     DateTime @default(now())
   updatedAt     DateTime @updatedAt
-  userShifts  UserShift[]
-  
-  tasks            Task[]
-  attendance       Attendance[]
-  leaveBalances    LeaveBalance[]
-  leaveRequests    LeaveRequest[]    @relation("LeaveRequester")
-  leaveApprovals   LeaveRequest[]    @relation("LeaveApprover")
-  notifications    Notification[]
+
+  // Relations
+  userShifts      UserShift[]
+  tasks           Task[]
+  attendance      Attendance[]
+  leaveBalances   LeaveBalance[]
+  leaveRequests   LeaveRequest[] @relation("LeaveRequester")
+  leaveApprovals  LeaveRequest[] @relation("LeaveApprover")
+  notifications   Notification[]
+  permissions     Permission[]
 
   @@index([email])
   @@index([managerId])
@@ -45,31 +51,35 @@ model Task {
   priority  String   @default("medium")
   completed Boolean  @default(false)
   notes     String?
+
   userId    String
   user      User     @relation(fields: [userId], references: [id], onDelete: Cascade)
+
   createdAt DateTime @default(now())
   updatedAt DateTime @updatedAt
-  
+
   @@index([userId])
   @@index([date])
   @@index([priority])
 }
 
 model Attendance {
-  id         String    @id @default(cuid())
-  date       DateTime
-  status     String
-  session    String    @default("full_day")
-  punchIn    DateTime?
-  punchOut   DateTime?
-  notes      String?
-  location   String?
-  latitude   Float?
-  longitude  Float?
-  userId     String
-  user       User      @relation(fields: [userId], references: [id], onDelete: Cascade)
-  createdAt  DateTime  @default(now())
-  updatedAt  DateTime  @updatedAt
+  id        String    @id @default(cuid())
+  date      DateTime
+  status    String
+  session   String    @default("full_day")
+  punchIn   DateTime?
+  punchOut  DateTime?
+  notes     String?
+  location  String?
+  latitude  Float?
+  longitude Float?
+
+  userId    String
+  user      User      @relation(fields: [userId], references: [id], onDelete: Cascade)
+
+  createdAt DateTime  @default(now())
+  updatedAt DateTime  @updatedAt
 
   @@unique([date, session, userId])
   @@index([userId])
@@ -82,9 +92,10 @@ model Holiday {
   date        DateTime @unique
   type        String   @default("public")
   description String?
+
   createdAt   DateTime @default(now())
   updatedAt   DateTime @updatedAt
-  
+
   @@index([date])
 }
 
@@ -94,6 +105,7 @@ model Department {
   description String?
   color       String   @default("#3b82f6")
   isActive    Boolean  @default(true)
+
   createdAt   DateTime @default(now())
   updatedAt   DateTime @updatedAt
 
@@ -106,13 +118,12 @@ model PasswordResetToken {
   token     String   @unique
   expiresAt DateTime
   used      Boolean  @default(false)
+
   createdAt DateTime @default(now())
 
   @@index([email])
   @@index([token])
 }
-
-// ==================== LEAVE MANAGEMENT ====================
 
 model LeaveType {
   id               String   @id @default(cuid())
@@ -126,11 +137,12 @@ model LeaveType {
   requiresApproval Boolean  @default(true)
   isActive         Boolean  @default(true)
   isPaid           Boolean  @default(true)
+
   createdAt        DateTime @default(now())
   updatedAt        DateTime @updatedAt
 
-  leaveBalances LeaveBalance[]
-  leaveRequests LeaveRequest[]
+  leaveBalances    LeaveBalance[]
+  leaveRequests    LeaveRequest[]
 
   @@index([code])
 }
@@ -142,10 +154,13 @@ model LeaveBalance {
   used         Float     @default(0)
   pending      Float     @default(0)
   carryForward Float     @default(0)
+
   userId       String
   user         User      @relation(fields: [userId], references: [id], onDelete: Cascade)
+
   leaveTypeId  String
   leaveType    LeaveType @relation(fields: [leaveTypeId], references: [id], onDelete: Cascade)
+
   createdAt    DateTime  @default(now())
   updatedAt    DateTime  @updatedAt
 
@@ -160,64 +175,61 @@ model LeaveRequest {
   endDate          DateTime
   days             Float
   reason           String?
-  status           String    @default("pending") // pending, approved, rejected, cancelled
-  type             String    @default("full")    // full, first_half, second_half
+  status           String    @default("pending")
+  type             String    @default("full")
   emergencyContact String?
-  
-  // Approval details
+
   approvedBy       String?
   approver         User?     @relation("LeaveApprover", fields: [approvedBy], references: [id])
   approvedAt       DateTime?
   rejectionReason  String?
-  
-  // Relations
+
   userId           String
   user             User      @relation("LeaveRequester", fields: [userId], references: [id], onDelete: Cascade)
+
   leaveTypeId      String
   leaveType        LeaveType @relation(fields: [leaveTypeId], references: [id])
-  
+
   createdAt        DateTime  @default(now())
   updatedAt        DateTime  @updatedAt
 
   @@index([userId])
   @@index([status])
   @@index([startDate, endDate])
-  @@index([leaveTypeId])
 }
-
-// ==================== NOTIFICATIONS ====================
 
 model Notification {
   id        String   @id @default(cuid())
   title     String
   message   String
-  type      String   @default("info") // info, success, warning, error, leave, task, attendance
+  type      String   @default("info")
   isRead    Boolean  @default(false)
   link      String?
+
   userId    String
   user      User     @relation(fields: [userId], references: [id], onDelete: Cascade)
+
   createdAt DateTime @default(now())
 
   @@index([userId])
   @@index([isRead])
-  @@index([createdAt])
 }
 
 model Shift {
-  id          String   @id @default(cuid())
-  name        String   // Morning, Evening, Night, etc.
-  code        String   @unique // MOR, EVE, NIG
-  startTime   String   // "09:00"
-  endTime     String   // "17:00"
-  breakMinutes Int     @default(60)
-  graceMinutes Int     @default(15) // Grace period for late arrival
-  color       String   @default("#3b82f6")
-  isActive    Boolean  @default(true)
-  createdAt   DateTime @default(now())
-  updatedAt   DateTime @updatedAt
+  id            String   @id @default(cuid())
+  name          String
+  code          String   @unique
+  startTime     String
+  endTime       String
+  breakMinutes  Int      @default(60)
+  graceMinutes  Int      @default(15)
+  color         String   @default("#3b82f6")
+  isActive      Boolean  @default(true)
 
-  // Relations
-  userShifts  UserShift[]
+  createdAt     DateTime @default(now())
+  updatedAt     DateTime @updatedAt
+
+  userShifts    UserShift[]
 }
 
 model UserShift {
@@ -227,11 +239,31 @@ model UserShift {
   startDate DateTime
   endDate   DateTime?
   isActive  Boolean  @default(true)
+
   createdAt DateTime @default(now())
 
-  user  User  @relation(fields: [userId], references: [id], onDelete: Cascade)
-  shift Shift @relation(fields: [shiftId], references: [id], onDelete: Cascade)
+  user      User     @relation(fields: [userId], references: [id], onDelete: Cascade)
+  shift     Shift    @relation(fields: [shiftId], references: [id], onDelete: Cascade)
 
   @@index([userId])
   @@index([shiftId])
+}
+
+model Permission {
+  id        String   @id @default(cuid())
+  userId    String
+  module    String   // attendance, tasks, leave, payroll, etc.
+
+  canRead   Boolean  @default(false)
+  canWrite  Boolean  @default(false)
+  canEdit   Boolean  @default(false)
+  canDelete Boolean  @default(false)
+
+  user      User     @relation(fields: [userId], references: [id], onDelete: Cascade)
+
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+
+  @@unique([userId, module])
+  @@index([userId])
 }

@@ -8,8 +8,9 @@ import DarkModeToggle from '@/components/DarkModeToggle'
 import UserNav from '@/components/UserNav'
 import NotificationBell from '@/components/NotificationBell'
 import { useToast } from '@/components/Toast'
+import ProtectedPage from '@/components/ProtectedPage'
 import {
-  BarChart, Bar, LineChart, Line, PieChart, Pie, Cell,
+  BarChart, Bar, PieChart, Pie, Cell,
   XAxis, YAxis, CartesianGrid, Tooltip, Legend, ResponsiveContainer,
   AreaChart, Area
 } from 'recharts'
@@ -31,11 +32,7 @@ export default function AnalyticsDashboard() {
     if (status === 'unauthenticated') {
       router.push('/login')
     } else if (status === 'authenticated') {
-      if (!['admin', 'hr', 'manager'].includes(session.user.role)) {
-        toast.error('Access denied. Manager+ role required.')
-        router.push('/')
-        return
-      }
+      // REMOVED old role check - ProtectedPage handles permissions now
       fetchAnalytics()
     }
   }, [status, router, session])
@@ -54,7 +51,6 @@ export default function AnalyticsDashboard() {
         const data = await res.json()
         setAnalyticsData(data)
       } else {
-        // Generate mock data if API fails
         setAnalyticsData(generateMockData())
       }
     } catch (error) {
@@ -82,12 +78,8 @@ export default function AnalyticsDashboard() {
 
     return {
       summary: {
-        totalEmployees: 45,
-        avgAttendanceRate: 87,
-        avgHoursWorked: 7.8,
-        totalLeavesTaken: 23,
-        lateArrivals: 12,
-        earlyDepartures: 8
+        totalEmployees: 45, avgAttendanceRate: 87, avgHoursWorked: 7.8,
+        totalLeavesTaken: 23, lateArrivals: 12, earlyDepartures: 8
       },
       attendanceTrend: attendanceTrend.slice(-7),
       departmentBreakdown: [
@@ -119,22 +111,14 @@ export default function AnalyticsDashboard() {
   }
 
   const data = analyticsData || generateMockData()
-  
-  // Ensure all arrays exist
   const attendanceTrend = data.attendanceTrend || []
   const departmentBreakdown = data.departmentBreakdown || []
   const leaveTypes = data.leaveTypes || []
   const topPerformers = data.topPerformers || []
-  const summary = data.summary || {
-    totalEmployees: 0,
-    avgAttendanceRate: 0,
-    avgHoursWorked: 0,
-    totalLeavesTaken: 0,
-    lateArrivals: 0,
-    earlyDepartures: 0
-  }
+  const summary = data.summary || { totalEmployees: 0, avgAttendanceRate: 0, avgHoursWorked: 0, totalLeavesTaken: 0, lateArrivals: 0, earlyDepartures: 0 }
 
   return (
+    <ProtectedPage module="analytics" action="read">
     <div className="min-h-screen bg-gradient-to-br from-slate-50 to-slate-100 dark:from-slate-900 dark:via-slate-800 dark:to-slate-900">
       {/* Background */}
       <div className="fixed inset-0 overflow-hidden pointer-events-none">
@@ -147,7 +131,6 @@ export default function AnalyticsDashboard() {
         <header className="mb-4 sm:mb-6">
           <div className="bg-white/70 dark:bg-slate-800/70 backdrop-blur-xl border border-white/20 dark:border-slate-700/50 rounded-2xl p-3 sm:p-6 shadow-xl">
             <div className="flex flex-col sm:flex-row items-start sm:items-center justify-between gap-3 sm:gap-4">
-              {/* Title */}
               <div className="flex items-center gap-3">
                 <Link href="/" className="p-2 hover:bg-slate-100 dark:hover:bg-slate-700 rounded-xl transition-colors">
                   <svg className="w-5 h-5 text-slate-600 dark:text-slate-400" fill="none" stroke="currentColor" viewBox="0 0 24 24">
@@ -163,9 +146,7 @@ export default function AnalyticsDashboard() {
                 </div>
               </div>
               
-              {/* Actions */}
               <div className="flex items-center gap-2 w-full sm:w-auto justify-end flex-wrap">
-                {/* Date Range */}
                 <div className="flex gap-1 p-1 bg-slate-100 dark:bg-slate-700 rounded-xl overflow-x-auto">
                   {['week', 'month', 'quarter', 'year'].map(range => (
                     <button
@@ -191,48 +172,22 @@ export default function AnalyticsDashboard() {
 
         {/* Summary Cards */}
         <div className="grid grid-cols-2 sm:grid-cols-3 lg:grid-cols-6 gap-2 sm:gap-4 mb-4 sm:mb-6">
-          <div className="bg-white dark:bg-slate-800 rounded-xl sm:rounded-2xl p-3 sm:p-4 border border-slate-200 dark:border-slate-700 shadow-lg">
-            <div className="flex items-center justify-between mb-1 sm:mb-2">
-              <span className="text-xs text-slate-500">Employees</span>
-              <span className="text-base sm:text-lg">👥</span>
+          {[
+            { label: 'Employees', value: summary.totalEmployees, icon: '👥', color: 'text-slate-900 dark:text-white' },
+            { label: 'Attendance', value: `${summary.avgAttendanceRate}%`, icon: '📅', color: 'text-emerald-600 dark:text-emerald-400' },
+            { label: 'Avg Hours', value: `${summary.avgHoursWorked}h`, icon: '⏱️', color: 'text-blue-600 dark:text-blue-400' },
+            { label: 'Leaves', value: summary.totalLeavesTaken, icon: '🏖️', color: 'text-amber-600 dark:text-amber-400' },
+            { label: 'Late', value: summary.lateArrivals, icon: '⏰', color: 'text-red-600 dark:text-red-400' },
+            { label: 'Early Out', value: summary.earlyDepartures, icon: '🚪', color: 'text-orange-600 dark:text-orange-400' }
+          ].map((stat, i) => (
+            <div key={i} className="bg-white dark:bg-slate-800 rounded-xl sm:rounded-2xl p-3 sm:p-4 border border-slate-200 dark:border-slate-700 shadow-lg">
+              <div className="flex items-center justify-between mb-1 sm:mb-2">
+                <span className="text-xs text-slate-500">{stat.label}</span>
+                <span className="text-base sm:text-lg">{stat.icon}</span>
+              </div>
+              <p className={`text-lg sm:text-2xl font-bold ${stat.color}`}>{stat.value}</p>
             </div>
-            <p className="text-lg sm:text-2xl font-bold text-slate-900 dark:text-white">{summary.totalEmployees}</p>
-          </div>
-          <div className="bg-white dark:bg-slate-800 rounded-xl sm:rounded-2xl p-3 sm:p-4 border border-slate-200 dark:border-slate-700 shadow-lg">
-            <div className="flex items-center justify-between mb-1 sm:mb-2">
-              <span className="text-xs text-slate-500">Attendance</span>
-              <span className="text-base sm:text-lg">📅</span>
-            </div>
-            <p className="text-lg sm:text-2xl font-bold text-emerald-600 dark:text-emerald-400">{summary.avgAttendanceRate}%</p>
-          </div>
-          <div className="bg-white dark:bg-slate-800 rounded-xl sm:rounded-2xl p-3 sm:p-4 border border-slate-200 dark:border-slate-700 shadow-lg">
-            <div className="flex items-center justify-between mb-1 sm:mb-2">
-              <span className="text-xs text-slate-500">Avg Hours</span>
-              <span className="text-base sm:text-lg">⏱️</span>
-            </div>
-            <p className="text-lg sm:text-2xl font-bold text-blue-600 dark:text-blue-400">{summary.avgHoursWorked}h</p>
-          </div>
-          <div className="bg-white dark:bg-slate-800 rounded-xl sm:rounded-2xl p-3 sm:p-4 border border-slate-200 dark:border-slate-700 shadow-lg">
-            <div className="flex items-center justify-between mb-1 sm:mb-2">
-              <span className="text-xs text-slate-500">Leaves</span>
-              <span className="text-base sm:text-lg">🏖️</span>
-            </div>
-            <p className="text-lg sm:text-2xl font-bold text-amber-600 dark:text-amber-400">{summary.totalLeavesTaken}</p>
-          </div>
-          <div className="bg-white dark:bg-slate-800 rounded-xl sm:rounded-2xl p-3 sm:p-4 border border-slate-200 dark:border-slate-700 shadow-lg">
-            <div className="flex items-center justify-between mb-1 sm:mb-2">
-              <span className="text-xs text-slate-500">Late</span>
-              <span className="text-base sm:text-lg">⏰</span>
-            </div>
-            <p className="text-lg sm:text-2xl font-bold text-red-600 dark:text-red-400">{summary.lateArrivals}</p>
-          </div>
-          <div className="bg-white dark:bg-slate-800 rounded-xl sm:rounded-2xl p-3 sm:p-4 border border-slate-200 dark:border-slate-700 shadow-lg">
-            <div className="flex items-center justify-between mb-1 sm:mb-2">
-              <span className="text-xs text-slate-500">Early Out</span>
-              <span className="text-base sm:text-lg">🚪</span>
-            </div>
-            <p className="text-lg sm:text-2xl font-bold text-orange-600 dark:text-orange-400">{summary.earlyDepartures}</p>
-          </div>
+          ))}
         </div>
 
         {/* Charts Row 1 */}
@@ -246,15 +201,7 @@ export default function AnalyticsDashboard() {
                   <CartesianGrid strokeDasharray="3 3" stroke="#e2e8f0" />
                   <XAxis dataKey="date" tick={{ fontSize: 10 }} />
                   <YAxis tick={{ fontSize: 10 }} />
-                  <Tooltip 
-                    contentStyle={{ 
-                      backgroundColor: 'rgba(255,255,255,0.95)', 
-                      borderRadius: '12px',
-                      border: 'none',
-                      boxShadow: '0 10px 40px rgba(0,0,0,0.1)',
-                      fontSize: '12px'
-                    }} 
-                  />
+                  <Tooltip contentStyle={{ backgroundColor: 'rgba(255,255,255,0.95)', borderRadius: '12px', border: 'none', boxShadow: '0 10px 40px rgba(0,0,0,0.1)', fontSize: '12px' }} />
                   <Legend wrapperStyle={{ fontSize: '12px' }} />
                   <Area type="monotone" dataKey="office" stackId="1" stroke="#3b82f6" fill="#3b82f6" fillOpacity={0.6} name="Office" />
                   <Area type="monotone" dataKey="field" stackId="1" stroke="#10b981" fill="#10b981" fillOpacity={0.6} name="Field" />
@@ -271,13 +218,9 @@ export default function AnalyticsDashboard() {
                 <PieChart>
                   <Pie
                     data={departmentBreakdown}
-                    cx="50%"
-                    cy="50%"
-                    innerRadius={40}
-                    outerRadius={70}
-                    fill="#8884d8"
-                    paddingAngle={5}
-                    dataKey="value"
+                    cx="50%" cy="50%"
+                    innerRadius={40} outerRadius={70}
+                    paddingAngle={5} dataKey="value"
                     label={({ name, percent }) => `${name} ${(percent * 100).toFixed(0)}%`}
                     labelLine={false}
                   >
@@ -285,13 +228,7 @@ export default function AnalyticsDashboard() {
                       <Cell key={`cell-${index}`} fill={COLORS[index % COLORS.length]} />
                     ))}
                   </Pie>
-                  <Tooltip 
-                    contentStyle={{ 
-                      backgroundColor: 'rgba(255,255,255,0.95)', 
-                      borderRadius: '12px',
-                      fontSize: '12px'
-                    }} 
-                  />
+                  <Tooltip contentStyle={{ backgroundColor: 'rgba(255,255,255,0.95)', borderRadius: '12px', fontSize: '12px' }} />
                 </PieChart>
               </ResponsiveContainer>
             </div>
@@ -309,13 +246,7 @@ export default function AnalyticsDashboard() {
                   <CartesianGrid strokeDasharray="3 3" stroke="#e2e8f0" />
                   <XAxis type="number" tick={{ fontSize: 10 }} />
                   <YAxis dataKey="name" type="category" width={80} tick={{ fontSize: 10 }} />
-                  <Tooltip 
-                    contentStyle={{ 
-                      backgroundColor: 'rgba(255,255,255,0.95)', 
-                      borderRadius: '12px',
-                      fontSize: '12px'
-                    }} 
-                  />
+                  <Tooltip contentStyle={{ backgroundColor: 'rgba(255,255,255,0.95)', borderRadius: '12px', fontSize: '12px' }} />
                   <Bar dataKey="value" fill="#f59e0b" radius={[0, 8, 8, 0]} />
                 </BarChart>
               </ResponsiveContainer>
@@ -331,13 +262,7 @@ export default function AnalyticsDashboard() {
                   <CartesianGrid strokeDasharray="3 3" stroke="#e2e8f0" />
                   <XAxis dataKey="name" tick={{ fontSize: 8 }} angle={-45} textAnchor="end" height={50} />
                   <YAxis tick={{ fontSize: 10 }} domain={[0, 100]} />
-                  <Tooltip 
-                    contentStyle={{ 
-                      backgroundColor: 'rgba(255,255,255,0.95)', 
-                      borderRadius: '12px',
-                      fontSize: '12px'
-                    }} 
-                  />
+                  <Tooltip contentStyle={{ backgroundColor: 'rgba(255,255,255,0.95)', borderRadius: '12px', fontSize: '12px' }} />
                   <Bar dataKey="attendance" fill="#10b981" radius={[8, 8, 0, 0]} />
                 </BarChart>
               </ResponsiveContainer>
@@ -367,5 +292,6 @@ export default function AnalyticsDashboard() {
         </div>
       </div>
     </div>
+    </ProtectedPage>
   )
 }

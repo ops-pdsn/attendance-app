@@ -8,6 +8,7 @@ import DarkModeToggle from '@/components/DarkModeToggle'
 import UserNav from '@/components/UserNav'
 import NotificationBell from '@/components/NotificationBell'
 import { useToast } from '@/components/Toast'
+import ProtectedPage from '@/components/ProtectedPage'
 
 export const dynamic = 'force-dynamic'
 
@@ -20,18 +21,14 @@ export default function TeamDashboard() {
   const [teamMembers, setTeamMembers] = useState([])
   const [todayAttendance, setTodayAttendance] = useState([])
   const [selectedDate, setSelectedDate] = useState(new Date().toISOString().split('T')[0])
-  const [viewMode, setViewMode] = useState('grid') // grid or list
-  const [filterStatus, setFilterStatus] = useState('all') // all, present, absent
+  const [viewMode, setViewMode] = useState('grid')
+  const [filterStatus, setFilterStatus] = useState('all')
 
   useEffect(() => {
     if (status === 'unauthenticated') {
       router.push('/login')
     } else if (status === 'authenticated') {
-      if (!['admin', 'hr', 'manager'].includes(session.user.role)) {
-        toast.error('Access denied. Manager+ role required.')
-        router.push('/')
-        return
-      }
+      // REMOVED old role check - ProtectedPage handles permissions now
       fetchData()
     }
   }, [status, router, session])
@@ -43,14 +40,8 @@ export default function TeamDashboard() {
         fetch(`/api/attendance?date=${selectedDate}&team=true`)
       ])
 
-      if (usersRes.ok) {
-        const users = await usersRes.json()
-        setTeamMembers(users)
-      }
-      if (attendanceRes.ok) {
-        const attendance = await attendanceRes.json()
-        setTodayAttendance(attendance)
-      }
+      if (usersRes.ok) setTeamMembers(await usersRes.json())
+      if (attendanceRes.ok) setTodayAttendance(await attendanceRes.json())
     } catch (error) {
       console.error('Error fetching data:', error)
       toast.error('Failed to load team data')
@@ -66,8 +57,7 @@ export default function TeamDashboard() {
   }, [selectedDate])
 
   const getAttendanceStatus = (userId) => {
-    const record = todayAttendance.find(a => a.userId === userId)
-    return record || null
+    return todayAttendance.find(a => a.userId === userId) || null
   }
 
   const getStatusColor = (status) => {
@@ -113,6 +103,7 @@ export default function TeamDashboard() {
   }
 
   return (
+    <ProtectedPage module="team" action="read">
     <div className="min-h-screen bg-gradient-to-br from-slate-50 to-slate-100 dark:from-slate-900 dark:via-slate-800 dark:to-slate-900">
       {/* Background */}
       <div className="fixed inset-0 overflow-hidden pointer-events-none">
@@ -125,7 +116,6 @@ export default function TeamDashboard() {
         <header className="mb-4 sm:mb-6">
           <div className="bg-white/70 dark:bg-slate-800/70 backdrop-blur-xl border border-white/20 dark:border-slate-700/50 rounded-2xl p-3 sm:p-6 shadow-xl">
             <div className="flex flex-col sm:flex-row items-start sm:items-center justify-between gap-3 sm:gap-4">
-              {/* Title */}
               <div className="flex items-center gap-3">
                 <Link href="/" className="p-2 hover:bg-slate-100 dark:hover:bg-slate-700 rounded-xl transition-colors">
                   <svg className="w-5 h-5 text-slate-600 dark:text-slate-400" fill="none" stroke="currentColor" viewBox="0 0 24 24">
@@ -141,7 +131,6 @@ export default function TeamDashboard() {
                 </div>
               </div>
               
-              {/* Actions */}
               <div className="flex items-center gap-2 w-full sm:w-auto justify-end flex-wrap">
                 <input
                   type="date"
@@ -160,84 +149,57 @@ export default function TeamDashboard() {
 
         {/* Stats Cards */}
         <div className="grid grid-cols-2 sm:grid-cols-3 lg:grid-cols-5 gap-2 sm:gap-4 mb-4 sm:mb-6">
-          <div className="bg-white dark:bg-slate-800 rounded-xl sm:rounded-2xl p-3 sm:p-4 border border-slate-200 dark:border-slate-700 shadow-lg">
-            <div className="flex items-center justify-between mb-1 sm:mb-2">
-              <span className="text-xs text-slate-500">Total</span>
-              <span className="text-lg">👥</span>
+          {[
+            { label: 'Total', value: stats.total, icon: '👥', color: 'text-slate-900 dark:text-white' },
+            { label: 'Present', value: stats.present, icon: '✅', color: 'text-emerald-600 dark:text-emerald-400' },
+            { label: 'Office', value: stats.office, icon: '🏢', color: 'text-blue-600 dark:text-blue-400' },
+            { label: 'Field', value: stats.field, icon: '🚗', color: 'text-emerald-600 dark:text-emerald-400' },
+            { label: 'Absent', value: stats.absent, icon: '❌', color: 'text-red-600 dark:text-red-400', span: 'col-span-2 sm:col-span-1' }
+          ].map((stat, i) => (
+            <div key={i} className={`bg-white dark:bg-slate-800 rounded-xl sm:rounded-2xl p-3 sm:p-4 border border-slate-200 dark:border-slate-700 shadow-lg ${stat.span || ''}`}>
+              <div className="flex items-center justify-between mb-1 sm:mb-2">
+                <span className="text-xs text-slate-500">{stat.label}</span>
+                <span className="text-lg">{stat.icon}</span>
+              </div>
+              <p className={`text-xl sm:text-2xl font-bold ${stat.color}`}>{stat.value}</p>
             </div>
-            <p className="text-xl sm:text-2xl font-bold text-slate-900 dark:text-white">{stats.total}</p>
-          </div>
-          <div className="bg-white dark:bg-slate-800 rounded-xl sm:rounded-2xl p-3 sm:p-4 border border-slate-200 dark:border-slate-700 shadow-lg">
-            <div className="flex items-center justify-between mb-1 sm:mb-2">
-              <span className="text-xs text-slate-500">Present</span>
-              <span className="text-lg">✅</span>
-            </div>
-            <p className="text-xl sm:text-2xl font-bold text-emerald-600 dark:text-emerald-400">{stats.present}</p>
-          </div>
-          <div className="bg-white dark:bg-slate-800 rounded-xl sm:rounded-2xl p-3 sm:p-4 border border-slate-200 dark:border-slate-700 shadow-lg">
-            <div className="flex items-center justify-between mb-1 sm:mb-2">
-              <span className="text-xs text-slate-500">Office</span>
-              <span className="text-lg">🏢</span>
-            </div>
-            <p className="text-xl sm:text-2xl font-bold text-blue-600 dark:text-blue-400">{stats.office}</p>
-          </div>
-          <div className="bg-white dark:bg-slate-800 rounded-xl sm:rounded-2xl p-3 sm:p-4 border border-slate-200 dark:border-slate-700 shadow-lg">
-            <div className="flex items-center justify-between mb-1 sm:mb-2">
-              <span className="text-xs text-slate-500">Field</span>
-              <span className="text-lg">🚗</span>
-            </div>
-            <p className="text-xl sm:text-2xl font-bold text-emerald-600 dark:text-emerald-400">{stats.field}</p>
-          </div>
-          <div className="bg-white dark:bg-slate-800 rounded-xl sm:rounded-2xl p-3 sm:p-4 border border-slate-200 dark:border-slate-700 shadow-lg col-span-2 sm:col-span-1">
-            <div className="flex items-center justify-between mb-1 sm:mb-2">
-              <span className="text-xs text-slate-500">Absent</span>
-              <span className="text-lg">❌</span>
-            </div>
-            <p className="text-xl sm:text-2xl font-bold text-red-600 dark:text-red-400">{stats.absent}</p>
-          </div>
+          ))}
         </div>
 
         {/* Filters */}
         <div className="flex flex-col sm:flex-row gap-3 mb-4 sm:mb-6">
-          {/* Status Filter */}
           <div className="flex gap-1 sm:gap-2 p-1 bg-white/50 dark:bg-slate-800/50 rounded-xl backdrop-blur-xl border border-slate-200/50 dark:border-slate-700/50 overflow-x-auto">
-            {[
-              { key: 'all', label: 'All' },
-              { key: 'present', label: 'Present' },
-              { key: 'absent', label: 'Absent' }
-            ].map(filter => (
+            {['all', 'present', 'absent'].map(filter => (
               <button
-                key={filter.key}
-                onClick={() => setFilterStatus(filter.key)}
-                className={`px-3 sm:px-4 py-2 rounded-lg text-xs sm:text-sm font-medium transition-all whitespace-nowrap ${
-                  filterStatus === filter.key
+                key={filter}
+                onClick={() => setFilterStatus(filter)}
+                className={`px-3 sm:px-4 py-2 rounded-lg text-xs sm:text-sm font-medium transition-all whitespace-nowrap capitalize ${
+                  filterStatus === filter
                     ? 'bg-white dark:bg-slate-700 text-slate-900 dark:text-white shadow-md'
                     : 'text-slate-600 dark:text-slate-400'
                 }`}
               >
-                {filter.label}
+                {filter}
               </button>
             ))}
           </div>
 
-          {/* View Mode Toggle */}
           <div className="flex gap-1 p-1 bg-white/50 dark:bg-slate-800/50 rounded-xl backdrop-blur-xl border border-slate-200/50 dark:border-slate-700/50 ml-auto">
-            <button
-              onClick={() => setViewMode('grid')}
-              className={`p-2 rounded-lg transition-all ${viewMode === 'grid' ? 'bg-white dark:bg-slate-700 shadow-md' : ''}`}
-            >
-              <svg className="w-4 h-4 sm:w-5 sm:h-5 text-slate-600 dark:text-slate-400" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M4 6a2 2 0 012-2h2a2 2 0 012 2v2a2 2 0 01-2 2H6a2 2 0 01-2-2V6zM14 6a2 2 0 012-2h2a2 2 0 012 2v2a2 2 0 01-2 2h-2a2 2 0 01-2-2V6zM4 16a2 2 0 012-2h2a2 2 0 012 2v2a2 2 0 01-2 2H6a2 2 0 01-2-2v-2zM14 16a2 2 0 012-2h2a2 2 0 012 2v2a2 2 0 01-2 2h-2a2 2 0 01-2-2v-2z" />
-              </svg>
-            </button>
-            <button
-              onClick={() => setViewMode('list')}
-              className={`p-2 rounded-lg transition-all ${viewMode === 'list' ? 'bg-white dark:bg-slate-700 shadow-md' : ''}`}
-            >
-              <svg className="w-4 h-4 sm:w-5 sm:h-5 text-slate-600 dark:text-slate-400" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M4 6h16M4 10h16M4 14h16M4 18h16" />
-              </svg>
-            </button>
+            {['grid', 'list'].map(mode => (
+              <button
+                key={mode}
+                onClick={() => setViewMode(mode)}
+                className={`p-2 rounded-lg transition-all ${viewMode === mode ? 'bg-white dark:bg-slate-700 shadow-md' : ''}`}
+              >
+                <svg className="w-4 h-4 sm:w-5 sm:h-5 text-slate-600 dark:text-slate-400" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                  {mode === 'grid' ? (
+                    <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M4 6a2 2 0 012-2h2a2 2 0 012 2v2a2 2 0 01-2 2H6a2 2 0 01-2-2V6zM14 6a2 2 0 012-2h2a2 2 0 012 2v2a2 2 0 01-2 2h-2a2 2 0 01-2-2V6zM4 16a2 2 0 012-2h2a2 2 0 012 2v2a2 2 0 01-2 2H6a2 2 0 01-2-2v-2zM14 16a2 2 0 012-2h2a2 2 0 012 2v2a2 2 0 01-2 2h-2a2 2 0 01-2-2v-2z" />
+                  ) : (
+                    <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M4 6h16M4 10h16M4 14h16M4 18h16" />
+                  )}
+                </svg>
+              </button>
+            ))}
           </div>
         </div>
 
@@ -250,15 +212,11 @@ export default function TeamDashboard() {
             <p className="text-slate-600 dark:text-slate-400 font-medium text-sm sm:text-base">No team members found</p>
           </div>
         ) : viewMode === 'grid' ? (
-          /* Grid View */
           <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 xl:grid-cols-4 gap-3 sm:gap-4">
             {filteredMembers.map(member => {
               const attendance = getAttendanceStatus(member.id)
               return (
-                <div
-                  key={member.id}
-                  className="bg-white dark:bg-slate-800 rounded-xl sm:rounded-2xl p-3 sm:p-4 border border-slate-200 dark:border-slate-700 shadow-lg hover:shadow-xl transition-all"
-                >
+                <div key={member.id} className="bg-white dark:bg-slate-800 rounded-xl sm:rounded-2xl p-3 sm:p-4 border border-slate-200 dark:border-slate-700 shadow-lg hover:shadow-xl transition-all">
                   <div className="flex items-center gap-3">
                     <div className="relative">
                       <div className="w-10 h-10 sm:w-12 sm:h-12 bg-gradient-to-br from-indigo-500 to-purple-600 rounded-xl flex items-center justify-center text-white font-bold text-sm">
@@ -290,21 +248,12 @@ export default function TeamDashboard() {
                         </span>
                       </div>
                     )}
-                    {attendance?.location && (
-                      <div className="flex items-center gap-1 mt-2 text-xs text-slate-500">
-                        <svg className="w-3 h-3" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                          <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M17.657 16.657L13.414 20.9a1.998 1.998 0 01-2.827 0l-4.244-4.243a8 8 0 1111.314 0z" />
-                        </svg>
-                        <span className="truncate">{attendance.location}</span>
-                      </div>
-                    )}
                   </div>
                 </div>
               )
             })}
           </div>
         ) : (
-          /* List View */
           <div className="bg-white dark:bg-slate-800 rounded-2xl border border-slate-200 dark:border-slate-700 shadow-lg overflow-hidden">
             <div className="overflow-x-auto">
               <table className="w-full min-w-[500px]">
@@ -355,5 +304,6 @@ export default function TeamDashboard() {
         )}
       </div>
     </div>
+    </ProtectedPage>
   )
 }

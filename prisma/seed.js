@@ -6,7 +6,6 @@ const prisma = new PrismaClient()
 async function main() {
   console.log('🌱 Starting seed...')
 
-  // Hash password - all demo users will have password: "password123"
   const hashedPassword = await bcrypt.hash('password123', 12)
 
   // ============================================
@@ -15,7 +14,6 @@ async function main() {
   console.log('👥 Creating users...')
 
   const users = await Promise.all([
-    // Admin
     prisma.user.upsert({
       where: { email: 'admin@demo.com' },
       update: {},
@@ -30,7 +28,6 @@ async function main() {
         isActive: true
       }
     }),
-    // HR
     prisma.user.upsert({
       where: { email: 'hr@demo.com' },
       update: {},
@@ -45,7 +42,6 @@ async function main() {
         isActive: true
       }
     }),
-    // Manager
     prisma.user.upsert({
       where: { email: 'manager@demo.com' },
       update: {},
@@ -60,7 +56,6 @@ async function main() {
         isActive: true
       }
     }),
-    // Employees
     prisma.user.upsert({
       where: { email: 'amit@demo.com' },
       update: {},
@@ -164,21 +159,23 @@ async function main() {
   console.log(`✅ Created ${users.length} users`)
 
   // ============================================
-  // 2. CREATE LEAVE TYPES
+  // 2. CREATE COMPREHENSIVE LEAVE TYPES
   // ============================================
   console.log('🏖️ Creating leave types...')
 
   const leaveTypes = await Promise.all([
+    // PAID LEAVES
     prisma.leaveType.upsert({
-      where: { code: 'CL' },
+      where: { code: 'PL' },
       update: {},
       create: {
-        name: 'Casual Leave',
-        code: 'CL',
-        color: '#3b82f6',
-        defaultDays: 12,
+        name: 'Paid Leave',
+        code: 'PL',
+        color: '#10b981',
+        defaultDays: 21, // 1.75 * 12 months
         isPaid: true,
-        carryForward: false
+        carryForward: true,
+        description: 'Monthly accrual of 1.75 days'
       }
     }),
     prisma.leaveType.upsert({
@@ -188,21 +185,102 @@ async function main() {
         name: 'Sick Leave',
         code: 'SL',
         color: '#ef4444',
-        defaultDays: 10,
+        defaultDays: 12,
         isPaid: true,
-        carryForward: false
+        carryForward: false,
+        description: 'For illness and medical needs'
+      }
+    }),
+    prisma.leaveType.upsert({
+      where: { code: 'CO' },
+      update: {},
+      create: {
+        name: 'Comp-Off',
+        code: 'CO',
+        color: '#8b5cf6',
+        defaultDays: 0, // Earned by working extra
+        isPaid: true,
+        carryForward: true,
+        description: 'Compensatory off for extra work'
+      }
+    }),
+    prisma.leaveType.upsert({
+      where: { code: 'ML' },
+      update: {},
+      create: {
+        name: 'Maternity Leave',
+        code: 'ML',
+        color: '#ec4899',
+        defaultDays: 180,
+        isPaid: true,
+        carryForward: false,
+        description: '26 weeks maternity leave'
+      }
+    }),
+    prisma.leaveType.upsert({
+      where: { code: 'PL2' },
+      update: {},
+      create: {
+        name: 'Paternity Leave',
+        code: 'PL2',
+        color: '#06b6d4',
+        defaultDays: 15,
+        isPaid: true,
+        carryForward: false,
+        description: '15 days paternity leave'
+      }
+    }),
+    // UNPAID / PARTIAL LEAVES
+    prisma.leaveType.upsert({
+      where: { code: 'HD' },
+      update: {},
+      create: {
+        name: 'Half Day',
+        code: 'HD',
+        color: '#f59e0b',
+        defaultDays: 999, // Unlimited
+        isPaid: false,
+        carryForward: false,
+        description: 'Half day leave (0.5 day deducted)'
       }
     }),
     prisma.leaveType.upsert({
       where: { code: 'EL' },
       update: {},
       create: {
-        name: 'Earned Leave',
+        name: 'Early Leaving',
         code: 'EL',
-        color: '#10b981',
-        defaultDays: 15,
-        isPaid: true,
-        carryForward: true
+        color: '#f97316',
+        defaultDays: 999,
+        isPaid: false,
+        carryForward: false,
+        description: 'Leave office early'
+      }
+    }),
+    prisma.leaveType.upsert({
+      where: { code: 'LC' },
+      update: {},
+      create: {
+        name: 'Late Coming',
+        code: 'LC',
+        color: '#eab308',
+        defaultDays: 999,
+        isPaid: false,
+        carryForward: false,
+        description: 'Arrive late to office'
+      }
+    }),
+    prisma.leaveType.upsert({
+      where: { code: 'EM' },
+      update: {},
+      create: {
+        name: 'Emergency Leave',
+        code: 'EM',
+        color: '#dc2626',
+        defaultDays: 3,
+        isPaid: false,
+        carryForward: false,
+        description: 'For urgent emergencies'
       }
     }),
     prisma.leaveType.upsert({
@@ -211,10 +289,11 @@ async function main() {
       create: {
         name: 'Leave Without Pay',
         code: 'LWP',
-        color: '#f59e0b',
+        color: '#6b7280',
         defaultDays: 365,
         isPaid: false,
-        carryForward: false
+        carryForward: false,
+        description: 'Unpaid leave'
       }
     })
   ])
@@ -228,30 +307,34 @@ async function main() {
 
   const currentYear = new Date().getFullYear()
   let balanceCount = 0
-  
+
   for (const user of users) {
     for (const leaveType of leaveTypes) {
-      const used = Math.floor(Math.random() * 3) // Random 0-2 used
-      await prisma.leaveBalance.upsert({
-        where: {
-          userId_leaveTypeId_year: {
+      const used = Math.floor(Math.random() * 3)
+      try {
+        await prisma.leaveBalance.upsert({
+          where: {
+            userId_leaveTypeId_year: {
+              userId: user.id,
+              leaveTypeId: leaveType.id,
+              year: currentYear
+            }
+          },
+          update: {},
+          create: {
             userId: user.id,
             leaveTypeId: leaveType.id,
-            year: currentYear
+            year: currentYear,
+            total: leaveType.defaultDays,
+            used: used,
+            pending: 0,
+            carryForward: 0
           }
-        },
-        update: {},
-        create: {
-          userId: user.id,
-          leaveTypeId: leaveType.id,
-          year: currentYear,
-          total: leaveType.defaultDays,
-          used: used,
-          pending: 0,
-          carryForward: 0
-        }
-      })
-      balanceCount++
+        })
+        balanceCount++
+      } catch (e) {
+        // Skip if constraint error
+      }
     }
   }
 
@@ -269,18 +352,16 @@ async function main() {
     for (let i = 0; i < 7; i++) {
       const date = new Date(today)
       date.setDate(date.getDate() - i)
-      
-      // Skip weekends
+      date.setHours(0, 0, 0, 0)
+
       if (date.getDay() === 0 || date.getDay() === 6) continue
 
-      // Random status: 80% office, 15% field, 5% leave
       const rand = Math.random()
       const status = rand < 0.8 ? 'office' : rand < 0.95 ? 'field' : 'leave'
 
-      // Random punch times
-      const punchInHour = 8 + Math.floor(Math.random() * 2) // 8-9 AM
+      const punchInHour = 8 + Math.floor(Math.random() * 2)
       const punchInMin = Math.floor(Math.random() * 60)
-      const punchOutHour = 17 + Math.floor(Math.random() * 2) // 5-6 PM
+      const punchOutHour = 17 + Math.floor(Math.random() * 2)
       const punchOutMin = Math.floor(Math.random() * 60)
 
       const punchIn = new Date(date)
@@ -303,7 +384,7 @@ async function main() {
         })
         attendanceCount++
       } catch (e) {
-        // Skip if already exists
+        // Skip duplicates
       }
     }
   }
@@ -320,58 +401,72 @@ async function main() {
     'Team meeting preparation',
     'Code review',
     'Client call',
-    'Update documentation',
-    'Bug fixing',
-    'Feature development',
-    'Testing',
-    'Deployment',
-    'Training session'
+    'Update documentation'
   ]
 
   let taskCount = 0
-  for (const user of users.slice(0, 5)) { // First 5 users
+  for (const user of users.slice(0, 5)) {
     for (let i = 0; i < 3; i++) {
       const date = new Date(today)
       date.setDate(date.getDate() + i)
 
-      await prisma.task.create({
-        data: {
-          userId: user.id,
-          title: taskTitles[Math.floor(Math.random() * taskTitles.length)],
-          date: date,
-          type: i === 0 ? 'daily' : 'upcoming',
-          priority: ['low', 'medium', 'high'][Math.floor(Math.random() * 3)],
-          completed: Math.random() > 0.7,
-          notes: 'Sample task for testing'
-        }
-      })
-      taskCount++
+      try {
+        await prisma.task.create({
+          data: {
+            userId: user.id,
+            title: taskTitles[Math.floor(Math.random() * taskTitles.length)],
+            date: date,
+            type: i === 0 ? 'daily' : 'upcoming',
+            priority: ['low', 'medium', 'high'][Math.floor(Math.random() * 3)],
+            completed: Math.random() > 0.7,
+            notes: 'Sample task'
+          }
+        })
+        taskCount++
+      } catch (e) {
+        // Skip errors
+      }
     }
   }
 
   console.log(`✅ Created ${taskCount} tasks`)
 
   // ============================================
-  // 6. PRINT LOGIN CREDENTIALS
+  // SUMMARY
   // ============================================
-  console.log('\n' + '='.repeat(50))
+  console.log('\n' + '='.repeat(60))
   console.log('🎉 SEED COMPLETED SUCCESSFULLY!')
-  console.log('='.repeat(50))
-  console.log('\n📧 LOGIN CREDENTIALS (Password for all: password123)\n')
-  console.log('┌─────────────────────┬──────────────────┬─────────────┐')
-  console.log('│ Email               │ Name             │ Role        │')
-  console.log('├─────────────────────┼──────────────────┼─────────────┤')
-  console.log('│ admin@demo.com      │ Admin User       │ admin       │')
-  console.log('│ hr@demo.com         │ Priya Sharma     │ hr          │')
-  console.log('│ manager@demo.com    │ Rajesh Kumar     │ manager     │')
-  console.log('│ amit@demo.com       │ Amit Patel       │ employee    │')
-  console.log('│ neha@demo.com       │ Neha Gupta       │ employee    │')
-  console.log('│ vikram@demo.com     │ Vikram Singh     │ employee    │')
-  console.log('│ ananya@demo.com     │ Ananya Reddy     │ employee    │')
-  console.log('│ rahul@demo.com      │ Rahul Verma      │ employee    │')
-  console.log('│ pooja@demo.com      │ Pooja Mehta      │ employee    │')
-  console.log('│ suresh@demo.com     │ Suresh Nair      │ employee    │')
-  console.log('└─────────────────────┴──────────────────┴─────────────┘')
+  console.log('='.repeat(60))
+  console.log('\n📧 LOGIN CREDENTIALS (Password: password123)\n')
+  console.log('┌──────────────────────┬──────────────────┬─────────────┐')
+  console.log('│ Email                │ Name             │ Role        │')
+  console.log('├──────────────────────┼──────────────────┼─────────────┤')
+  console.log('│ admin@demo.com       │ Admin User       │ admin       │')
+  console.log('│ hr@demo.com          │ Priya Sharma     │ hr          │')
+  console.log('│ manager@demo.com     │ Rajesh Kumar     │ manager     │')
+  console.log('│ amit@demo.com        │ Amit Patel       │ employee    │')
+  console.log('│ neha@demo.com        │ Neha Gupta       │ employee    │')
+  console.log('│ vikram@demo.com      │ Vikram Singh     │ employee    │')
+  console.log('│ ananya@demo.com      │ Ananya Reddy     │ employee    │')
+  console.log('│ rahul@demo.com       │ Rahul Verma      │ employee    │')
+  console.log('│ pooja@demo.com       │ Pooja Mehta      │ employee    │')
+  console.log('│ suresh@demo.com      │ Suresh Nair      │ employee    │')
+  console.log('└──────────────────────┴──────────────────┴─────────────┘')
+  console.log('\n🏖️ LEAVE TYPES CREATED:\n')
+  console.log('┌──────┬─────────────────────┬────────┬─────────────────────────────┐')
+  console.log('│ Code │ Name                │ Paid   │ Description                 │')
+  console.log('├──────┼─────────────────────┼────────┼─────────────────────────────┤')
+  console.log('│ PL   │ Paid Leave          │ ✅ Yes │ 1.75 days/month accrual     │')
+  console.log('│ SL   │ Sick Leave          │ ✅ Yes │ Medical needs               │')
+  console.log('│ CO   │ Comp-Off            │ ✅ Yes │ Extra work compensation     │')
+  console.log('│ ML   │ Maternity Leave     │ ✅ Yes │ 26 weeks                    │')
+  console.log('│ PL2  │ Paternity Leave     │ ✅ Yes │ 15 days                     │')
+  console.log('│ HD   │ Half Day            │ ❌ No  │ 0.5 day deducted            │')
+  console.log('│ EL   │ Early Leaving       │ ❌ No  │ Leave early                 │')
+  console.log('│ LC   │ Late Coming         │ ❌ No  │ Arrive late                 │')
+  console.log('│ EM   │ Emergency Leave     │ ❌ No  │ Urgent emergencies          │')
+  console.log('│ LWP  │ Leave Without Pay   │ ❌ No  │ Unpaid leave                │')
+  console.log('└──────┴─────────────────────┴────────┴─────────────────────────────┘')
   console.log('\n')
 }
 

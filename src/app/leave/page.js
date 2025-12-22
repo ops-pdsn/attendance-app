@@ -9,6 +9,7 @@ import UserNav from '@/components/UserNav'
 import NotificationBell from '@/components/NotificationBell'
 import { useToast } from '@/components/Toast'
 import { useConfirm } from '@/components/ConfirmDialog'
+import ProtectedPage from '@/components/ProtectedPage'
 
 export const dynamic = 'force-dynamic'
 
@@ -160,6 +161,7 @@ export default function LeaveManagement() {
   }
 
   return (
+    <ProtectedPage module="leave" action="read">
     <div className="min-h-screen bg-gradient-to-br from-slate-50 to-slate-100 dark:from-slate-900 dark:via-slate-800 dark:to-slate-900">
       {/* Background */}
       <div className="fixed inset-0 overflow-hidden pointer-events-none">
@@ -528,5 +530,6 @@ export default function LeaveManagement() {
         </div>
       )}
     </div>
+    </ProtectedPage>
   )
 }
