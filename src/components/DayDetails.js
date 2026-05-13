@@ -46,9 +46,10 @@ export default function DayDetails({ date, tasks, attendance, holidays, onAddTas
     h.date.split('T')[0] === date.toISOString().split('T')[0]
   )
   
-  // Get attendance entries for this date
-  const attendanceEntries = Array.isArray(attendance) 
-    ? attendance.filter(a => a.date.split('T')[0] === date.toISOString().split('T')[0])
+  // Get attendance entries for this date — use local date string to avoid timezone shift
+  const localDateStr = `${date.getFullYear()}-${String(date.getMonth()+1).padStart(2,'0')}-${String(date.getDate()).padStart(2,'0')}`
+  const attendanceEntries = Array.isArray(attendance)
+    ? attendance.filter(a => a.date.split('T')[0] === localDateStr)
     : []
   
   const handleAddTask = async (e) => {
@@ -76,9 +77,12 @@ export default function DayDetails({ date, tasks, attendance, holidays, onAddTas
   const handleMarkAttendance = async (e) => {
     e.preventDefault()
     
-    // Build attendance data
+    // Build attendance data — send local date string to avoid timezone day-shift
+    const y = date.getFullYear()
+    const mo = String(date.getMonth()+1).padStart(2,'0')
+    const da = String(date.getDate()).padStart(2,'0')
     const attendanceData = {
-      date: date.toISOString(),
+      date: `${y}-${mo}-${da}`,
       status: attendanceStatus,
       session: attendanceSession,
       notes: attendanceNotes

@@ -7,38 +7,39 @@ export const dynamic = 'force-dynamic'
 export const fetchCache = 'force-no-store'
 export const revalidate = 0
 
-// ... rest of the file
+// Parse any date input as UTC midnight — fixes timezone shift bug
+function parseDateUTC(dateInput) {
+  if (!dateInput) return null
+  const dateOnly = String(dateInput).split('T')[0]
+  const [year, month, day] = dateOnly.split('-').map(Number)
+  return new Date(Date.UTC(year, month - 1, day))
+}
 
-// GET /api/attendance - Get attendance records
+// GET /api/attendance
 export async function GET(request) {
   try {
     const session = await getServerSession(authOptions)
-    if (!session) {
-      return NextResponse.json({ error: 'Unauthorized' }, { status: 401 })
-    }
+    if (!session) return NextResponse.json({ error: 'Unauthorized' }, { status: 401 })
 
     const { searchParams } = new URL(request.url)
     const startDate = searchParams.get('start')
     const endDate = searchParams.get('end')
     const userId = searchParams.get('userId')
 
-    // Build where clause
     let where = {}
-    
-    // Admin can view all, others only their own
+
     if (session.user.role === 'admin' || session.user.role === 'hr') {
-      if (userId) {
-        where.userId = userId
-      }
+      if (userId) where.userId = userId
     } else {
       where.userId = session.user.id
     }
 
-    // Date filtering
     if (startDate && endDate) {
+      const endUTC = parseDateUTC(endDate)
+      endUTC.setUTCHours(23, 59, 59, 999)
       where.date = {
-        gte: new Date(startDate),
-        lte: new Date(endDate + 'T23:59:59.999Z')
+        gte: parseDateUTC(startDate),
+        lte: endUTC
       }
     }
 
@@ -47,12 +48,7 @@ export async function GET(request) {
       orderBy: { date: 'desc' },
       include: {
         user: {
-          select: {
-            id: true,
-            name: true,
-            email: true,
-            department: true
-          }
+          select: { id: true, name: true, email: true, department: true }
         }
       }
     })
@@ -64,44 +60,26 @@ export async function GET(request) {
   }
 }
 
-// POST /api/attendance - Mark attendance
+// POST /api/attendance
 export async function POST(request) {
   try {
     const session = await getServerSession(authOptions)
-    if (!session) {
-      return NextResponse.json({ error: 'Unauthorized' }, { status: 401 })
-    }
+    if (!session) return NextResponse.json({ error: 'Unauthorized' }, { status: 401 })
 
     const body = await request.json()
-    const {
-      date,
-      status,
-      session: attendanceSession,
-      notes,
-      latitude,
-      longitude,
-      location,
-      accuracy,
-      targetUserId // admin can specify userId
-    } = body
+    const { date, status, session: attendanceSession, notes, latitude, longitude, location, accuracy, photo, targetUserId } = body
 
-    // Admin can create for any user
     const isAdmin = ['admin', 'hr'].includes(session.user.role)
     const effectiveUserId = (isAdmin && targetUserId) ? targetUserId : session.user.id
 
-    const attendanceDate = new Date(date)
-    attendanceDate.setHours(0, 0, 0, 0)
+    // Use UTC-safe date parsing to avoid timezone day-shift
+    const attendanceDate = parseDateUTC(date)
 
-    // Check if already marked for this date
     const existing = await prisma.attendance.findFirst({
-      where: {
-        userId: effectiveUserId,
-        date: attendanceDate
-      }
+      where: { userId: effectiveUserId, date: attendanceDate }
     })
 
     if (existing) {
-      // Update existing record
       const updated = await prisma.attendance.update({
         where: { id: existing.id },
         data: {
@@ -111,6 +89,7 @@ export async function POST(request) {
           latitude: latitude ? parseFloat(latitude) : null,
           longitude: longitude ? parseFloat(longitude) : null,
           location,
+          photo: photo || existing.photo,
           punchIn: existing.punchIn || new Date(),
           punchOut: new Date()
         }
@@ -118,7 +97,6 @@ export async function POST(request) {
       return NextResponse.json(updated)
     }
 
-    // Create new attendance record
     const attendance = await prisma.attendance.create({
       data: {
         userId: effectiveUserId,
@@ -129,6 +107,7 @@ export async function POST(request) {
         latitude: latitude ? parseFloat(latitude) : null,
         longitude: longitude ? parseFloat(longitude) : null,
         location,
+        photo: photo || null,
         punchIn: new Date()
       }
     })
@@ -140,20 +119,18 @@ export async function POST(request) {
   }
 }
 
-// PATCH /api/attendance - Admin: update any record (status, session, punchIn, punchOut, notes, userId)
+// PATCH /api/attendance — Admin update
 export async function PATCH(request) {
   try {
     const session = await getServerSession(authOptions)
     if (!session) return NextResponse.json({ error: 'Unauthorized' }, { status: 401 })
     if (!['admin', 'hr'].includes(session.user.role))
-      return NextResponse.json({ error: 'Forbidden — admin/HR only' }, { status: 403 })
+      return NextResponse.json({ error: 'Forbidden' }, { status: 403 })
 
     const { id, status, attendanceSession, punchIn, punchOut, notes, userId, date } = await request.json()
 
-    // Admin creating a new record for another user
     if (!id && userId && date) {
-      const attendanceDate = new Date(date)
-      attendanceDate.setHours(0, 0, 0, 0)
+      const attendanceDate = parseDateUTC(date)
       const record = await prisma.attendance.upsert({
         where: { date_session_userId: { date: attendanceDate, session: attendanceSession || 'full_day', userId } },
         update: { status, notes, punchIn: punchIn ? new Date(punchIn) : undefined, punchOut: punchOut ? new Date(punchOut) : undefined },
@@ -184,7 +161,7 @@ export async function PATCH(request) {
   }
 }
 
-// DELETE /api/attendance - Admin: delete any record; user: delete own
+// DELETE /api/attendance
 export async function DELETE(request) {
   try {
     const session = await getServerSession(authOptions)
@@ -209,40 +186,27 @@ export async function DELETE(request) {
   }
 }
 
-// PUT /api/attendance - Update attendance (edit times)
+// PUT /api/attendance — Edit times
 export async function PUT(request) {
   try {
     const session = await getServerSession(authOptions)
-    if (!session) {
-      return NextResponse.json({ error: 'Unauthorized' }, { status: 401 })
-    }
+    if (!session) return NextResponse.json({ error: 'Unauthorized' }, { status: 401 })
 
-    const body = await request.json()
-    const { id, punchIn, punchOut, notes } = body
+    const { id, punchIn, punchOut, notes } = await request.json()
+    const attendance = await prisma.attendance.findUnique({ where: { id } })
 
-    const attendance = await prisma.attendance.findUnique({
-      where: { id }
-    })
-
-    if (!attendance) {
-      return NextResponse.json({ error: 'Attendance not found' }, { status: 404 })
-    }
-
-    // Only owner or admin can update
-    if (attendance.userId !== session.user.id && session.user.role !== 'admin') {
+    if (!attendance) return NextResponse.json({ error: 'Not found' }, { status: 404 })
+    if (attendance.userId !== session.user.id && session.user.role !== 'admin')
       return NextResponse.json({ error: 'Forbidden' }, { status: 403 })
-    }
-
-    const updateData = {}
-    if (punchIn) updateData.punchIn = new Date(punchIn)
-    if (punchOut) updateData.punchOut = new Date(punchOut)
-    if (notes !== undefined) updateData.notes = notes
 
     const updated = await prisma.attendance.update({
       where: { id },
-      data: updateData
+      data: {
+        ...(punchIn && { punchIn: new Date(punchIn) }),
+        ...(punchOut && { punchOut: new Date(punchOut) }),
+        ...(notes !== undefined && { notes })
+      }
     })
-
     return NextResponse.json(updated)
   } catch (error) {
     console.error('PUT /api/attendance error:', error)

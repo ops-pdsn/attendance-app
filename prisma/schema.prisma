@@ -180,6 +180,7 @@ model Attendance {
   location  String?
   latitude  Float?
   longitude Float?
+  photo     String?   @db.Text
 
   userId    String
   user      User      @relation(fields: [userId], references: [id], onDelete: Cascade)

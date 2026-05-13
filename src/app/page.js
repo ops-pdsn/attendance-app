@@ -281,12 +281,15 @@ export default function Home() {
     return tasks.filter((t) => t.date.split("T")[0] === dateStr);
   };
 
-  // Get attendance for selected date
+  // Get attendance for selected date — local date string avoids timezone day-shift
+  const selectedLocalDate = selectedDate
+    ? `${selectedDate.getFullYear()}-${String(selectedDate.getMonth()+1).padStart(2,'0')}-${String(selectedDate.getDate()).padStart(2,'0')}`
+    : null
+
   const getSelectedDateAttendance = () => {
-    if (!selectedDate) return [];
-    const dateStr = selectedDate.toISOString().split("T")[0];
-    return attendance.filter((a) => a.date.split("T")[0] === dateStr);
-  };
+    if (!selectedLocalDate) return []
+    return attendance.filter(a => a.date.split('T')[0] === selectedLocalDate)
+  }
 
   // Add new task
   const handleAddTask = async (taskData) => {
@@ -782,140 +785,46 @@ export default function Home() {
                 </div>
               </div>
 
-              {/* Action Buttons */}
-              <div className="flex items-center gap-2 sm:gap-3 w-full sm:w-auto flex-wrap">
-                {/* Date Filter Button */}
+              {/* Action Buttons — compact on mobile, full on desktop */}
+              <div className="flex items-center gap-1.5 sm:gap-2">
+                {/* Filter — icon only on mobile */}
                 <button
                   ref={filterButtonRef}
-                  onClick={() => {
-                    setShowFilterDropdown(!showFilterDropdown);
-                    setShowExportDropdown(false);
-                    setShowMoreDropdown(false);
-                  }}
-                  className={`flex items-center gap-2 px-3 sm:px-4 py-2.5 rounded-xl transition-all duration-200 text-sm font-medium ${
-                    dateFilter.start
-                      ? "bg-blue-500 text-white shadow-lg shadow-blue-500/25"
-                      : "bg-slate-100 dark:bg-slate-700 text-slate-700 dark:text-slate-300 hover:bg-slate-200 dark:hover:bg-slate-600"
+                  onClick={() => { setShowFilterDropdown(!showFilterDropdown); setShowExportDropdown(false); setShowMoreDropdown(false) }}
+                  title="Filter by date"
+                  className={`flex items-center gap-1.5 px-2.5 sm:px-3.5 py-2.5 rounded-xl transition-all text-sm font-medium ${
+                    dateFilter.start ? "bg-blue-500 text-white shadow-md shadow-blue-500/25" : "bg-slate-100 dark:bg-slate-700 text-slate-700 dark:text-slate-300 hover:bg-slate-200 dark:hover:bg-slate-600"
                   }`}
                 >
-                  <svg
-                    className="w-4 h-4"
-                    fill="none"
-                    stroke="currentColor"
-                    viewBox="0 0 24 24"
-                  >
-                    <path
-                      strokeLinecap="round"
-                      strokeLinejoin="round"
-                      strokeWidth={2}
-                      d="M8 7V3m8 4V3m-9 8h10M5 21h14a2 2 0 002-2V7a2 2 0 00-2-2H5a2 2 0 00-2 2v12a2 2 0 002 2z"
-                    />
-                  </svg>
-                  <span className="hidden sm:inline">{getFilterLabel()}</span>
-                  <svg
-                    className={`w-4 h-4 transition-transform ${
-                      showFilterDropdown ? "rotate-180" : ""
-                    }`}
-                    fill="none"
-                    stroke="currentColor"
-                    viewBox="0 0 24 24"
-                  >
-                    <path
-                      strokeLinecap="round"
-                      strokeLinejoin="round"
-                      strokeWidth={2}
-                      d="M19 9l-7 7-7-7"
-                    />
-                  </svg>
+                  <svg className="w-4 h-4 flex-shrink-0" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M8 7V3m8 4V3m-9 8h10M5 21h14a2 2 0 002-2V7a2 2 0 00-2-2H5a2 2 0 00-2 2v12a2 2 0 002 2z" /></svg>
+                  <span className="hidden sm:inline text-xs">{getFilterLabel()}</span>
                 </button>
 
-                {/* Export Button */}
+                {/* Export — hidden on very small screens, icon+text on sm+ */}
                 <button
                   ref={exportButtonRef}
-                  onClick={() => {
-                    setShowExportDropdown(!showExportDropdown);
-                    setShowFilterDropdown(false);
-                    setShowMoreDropdown(false);
-                  }}
-                  className="flex items-center gap-2 px-3 sm:px-4 py-2.5 bg-gradient-to-r from-emerald-500 to-teal-500 text-white rounded-xl hover:from-emerald-600 hover:to-teal-600 transition-all duration-200 text-sm font-medium shadow-lg shadow-emerald-500/25"
+                  onClick={() => { setShowExportDropdown(!showExportDropdown); setShowFilterDropdown(false); setShowMoreDropdown(false) }}
+                  title="Export"
+                  className="hidden xs:flex items-center gap-1.5 px-2.5 sm:px-3.5 py-2.5 bg-emerald-500 text-white rounded-xl hover:bg-emerald-600 transition-all text-sm font-medium shadow-md shadow-emerald-500/20"
                 >
-                  <svg
-                    className="w-4 h-4"
-                    fill="none"
-                    stroke="currentColor"
-                    viewBox="0 0 24 24"
-                  >
-                    <path
-                      strokeLinecap="round"
-                      strokeLinejoin="round"
-                      strokeWidth={2}
-                      d="M4 16v1a3 3 0 003 3h10a3 3 0 003-3v-1m-4-4l-4 4m0 0l-4-4m4 4V4"
-                    />
-                  </svg>
-                  <span className="hidden sm:inline">Export</span>
-                  <svg
-                    className={`w-4 h-4 transition-transform ${
-                      showExportDropdown ? "rotate-180" : ""
-                    }`}
-                    fill="none"
-                    stroke="currentColor"
-                    viewBox="0 0 24 24"
-                  >
-                    <path
-                      strokeLinecap="round"
-                      strokeLinejoin="round"
-                      strokeWidth={2}
-                      d="M19 9l-7 7-7-7"
-                    />
-                  </svg>
+                  <svg className="w-4 h-4 flex-shrink-0" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M4 16v1a3 3 0 003 3h10a3 3 0 003-3v-1m-4-4l-4 4m0 0l-4-4m4 4V4" /></svg>
+                  <span className="hidden sm:inline text-xs">Export</span>
                 </button>
 
-                {/* More Button */}
+                {/* More */}
                 <button
                   ref={moreButtonRef}
-                  onClick={() => {
-                    setShowMoreDropdown(!showMoreDropdown);
-                    setShowFilterDropdown(false);
-                    setShowExportDropdown(false);
-                  }}
-                  className="flex items-center gap-2 px-3 sm:px-4 py-2.5 bg-slate-100 dark:bg-slate-700 text-slate-700 dark:text-slate-300 rounded-xl hover:bg-slate-200 dark:hover:bg-slate-600 transition-all duration-200 text-sm font-medium"
+                  onClick={() => { setShowMoreDropdown(!showMoreDropdown); setShowFilterDropdown(false); setShowExportDropdown(false) }}
+                  title="More options"
+                  className="flex items-center gap-1.5 px-2.5 sm:px-3.5 py-2.5 bg-slate-100 dark:bg-slate-700 text-slate-700 dark:text-slate-300 rounded-xl hover:bg-slate-200 dark:hover:bg-slate-600 transition-all text-sm font-medium"
                 >
-                  <svg
-                    className="w-4 h-4"
-                    fill="none"
-                    stroke="currentColor"
-                    viewBox="0 0 24 24"
-                  >
-                    <path
-                      strokeLinecap="round"
-                      strokeLinejoin="round"
-                      strokeWidth={2}
-                      d="M4 6h16M4 12h16M4 18h16"
-                    />
-                  </svg>
-                  <span className="hidden sm:inline">More</span>
-                  <svg
-                    className={`w-4 h-4 transition-transform ${
-                      showMoreDropdown ? "rotate-180" : ""
-                    }`}
-                    fill="none"
-                    stroke="currentColor"
-                    viewBox="0 0 24 24"
-                  >
-                    <path
-                      strokeLinecap="round"
-                      strokeLinejoin="round"
-                      strokeWidth={2}
-                      d="M19 9l-7 7-7-7"
-                    />
-                  </svg>
+                  <svg className="w-4 h-4 flex-shrink-0" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M4 6h16M4 12h16M4 18h16" /></svg>
+                  <span className="hidden sm:inline text-xs">More</span>
                 </button>
 
                 <DarkModeToggle />
                 <NotificationBell />
-
-                <div className="hidden sm:block w-px h-8 bg-slate-300 dark:bg-slate-600"></div>
-
+                <div className="hidden sm:block w-px h-8 bg-slate-200 dark:bg-slate-700" />
                 <UserNav />
               </div>
             </div>
@@ -965,7 +874,7 @@ export default function Home() {
         )}
 
         {/* Stats Cards */}
-        <div className="mb-6 grid grid-cols-2 sm:grid-cols-3 lg:grid-cols-5 gap-3 sm:gap-4">
+        <div className="mb-5 grid grid-cols-2 sm:grid-cols-3 lg:grid-cols-5 gap-2 sm:gap-4">
           {/* Total Tasks */}
           <div className="group bg-white dark:bg-slate-800/50 backdrop-blur-xl rounded-2xl p-4 sm:p-5 border border-slate-200/50 dark:border-slate-700/50 shadow-lg hover:shadow-xl transition-all duration-300 hover:scale-[1.02]">
             <div className="flex items-center justify-between mb-2">
@@ -1205,12 +1114,9 @@ export default function Home() {
                     const isPast = date < today;
                     const isFuture = date > today;
 
-                    // Find attendance for this day
-                    const dayAttendance = attendance.find((a) => {
-                      const aDate = new Date(a.date);
-                      aDate.setHours(0, 0, 0, 0);
-                      return aDate.getTime() === date.getTime();
-                    });
+                    // Find attendance for this day — compare UTC date strings
+                    const dayStr = `${year}-${String(month+1).padStart(2,'0')}-${String(day).padStart(2,'0')}`
+                    const dayAttendance = attendance.find(a => a.date.split('T')[0] === dayStr)
 
                     // Determine status color
                     let statusClass = "";
@@ -1237,34 +1143,16 @@ export default function Home() {
                         }}
                         disabled={isFuture}
                         className={`
-                          aspect-square rounded-xl flex flex-col items-center justify-center text-sm font-medium transition-all relative
-                          ${
-                            isToday
-                              ? "ring-2 ring-blue-500 ring-offset-2 dark:ring-offset-slate-800"
-                              : ""
-                          }
-                          ${
-                            statusClass ||
-                            (isFuture
-                              ? "text-slate-300 dark:text-slate-600 cursor-not-allowed"
-                              : "text-slate-700 dark:text-slate-300 hover:bg-slate-100 dark:hover:bg-slate-700")
-                          }
-                          ${
-                            !statusClass && !isFuture
-                              ? "bg-slate-50 dark:bg-slate-700/50"
-                              : ""
-                          }
+                          min-h-[44px] sm:aspect-square rounded-xl flex flex-col items-center justify-center text-sm font-medium transition-all relative py-1
+                          ${isToday ? "ring-2 ring-blue-500 ring-offset-2 dark:ring-offset-slate-800" : ""}
+                          ${statusClass || (isFuture ? "text-slate-300 dark:text-slate-600 cursor-not-allowed" : "text-slate-700 dark:text-slate-300 hover:bg-slate-100 dark:hover:bg-slate-700 active:scale-95")}
+                          ${!statusClass && !isFuture ? "bg-slate-50 dark:bg-slate-700/50" : ""}
                         `}
                       >
-                        <span>{day}</span>
-                        {statusIcon && (
-                          <span className="text-xs mt-0.5">{statusIcon}</span>
-                        )}
+                        <span className="text-sm sm:text-base">{day}</span>
+                        {statusIcon && <span className="text-[10px] sm:text-xs leading-none mt-0.5">{statusIcon}</span>}
                         {dayAttendance?.location && (
-                          <span
-                            className="absolute top-1 right-1 w-1.5 h-1.5 bg-yellow-400 rounded-full"
-                            title="Has location"
-                          />
+                          <span className="absolute top-1 right-1 w-1.5 h-1.5 bg-yellow-400 rounded-full" title="Has location" />
                         )}
                       </button>
                     );
@@ -1386,19 +1274,20 @@ export default function Home() {
         <ReportGenerator onClose={() => setShowReportGenerator(false)} />
       )}
 
-      {showAttendanceModal && selectedDate && (
-        <AttendanceModal
-          date={selectedDate}
-          existingAttendance={attendance.find(
-            (a) =>
-              new Date(a.date).toDateString() === selectedDate.toDateString()
-          )}
-          onClose={() => {
-            setShowAttendanceModal(false);
-          }}
-          onSuccess={fetchData}
-        />
-      )}
+      {showAttendanceModal && selectedDate && (() => {
+        const dayRecords = selectedLocalDate
+          ? attendance.filter(a => a.date.split('T')[0] === selectedLocalDate)
+          : []
+        return (
+          <AttendanceModal
+            date={selectedDate}
+            existingAttendance={dayRecords[0] || null}
+            allDayAttendance={dayRecords}
+            onClose={() => setShowAttendanceModal(false)}
+            onSuccess={fetchData}
+          />
+        )
+      })()}
 
       <style jsx>{`
         @keyframes fadeIn {

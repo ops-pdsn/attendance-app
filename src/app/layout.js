@@ -6,6 +6,7 @@ import { ConfirmProvider } from '@/components/ConfirmDialog'
 import PWAInstallPrompt from '@/components/PWAInstallPrompt'
 import ServiceWorkerRegistration from '@/components/ServiceWorkerRegistration'
 import NetworkStatus from '@/components/NetworkStatus'
+import TourGuide from '@/components/TourGuide'
 
 // Force dynamic rendering for all pages - prevents static generation timeout
 export const dynamic = 'force-dynamic'
@@ -79,6 +80,7 @@ export default async function RootLayout({ children }) {
             <ConfirmProvider>
               <NetworkStatus />
               {children}
+              <TourGuide />
               <PWAInstallPrompt />
               <ServiceWorkerRegistration />
             </ConfirmProvider>
