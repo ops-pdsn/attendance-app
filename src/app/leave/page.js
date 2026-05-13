@@ -2,7 +2,7 @@
 
 import { useState, useEffect } from 'react'
 import { useSession } from 'next-auth/react'
-import { useRouter } from 'next/navigation'
+import { useRouter, useSearchParams } from 'next/navigation'
 import Link from 'next/link'
 import DarkModeToggle from '@/components/DarkModeToggle'
 import UserNav from '@/components/UserNav'
@@ -16,16 +16,27 @@ export const dynamic = 'force-dynamic'
 export default function LeaveManagement() {
   const { data: session, status } = useSession()
   const router = useRouter()
+  const searchParams = useSearchParams()
   const toast = useToast()
   const { confirm } = useConfirm()
 
+  // Read tab from URL query parameter (e.g., /leave?tab=approvals)
+  const tabFromUrl = searchParams.get('tab')
+  const [activeTab, setActiveTab] = useState(tabFromUrl || 'balance')
+  
   const [loading, setLoading] = useState(true)
-  const [activeTab, setActiveTab] = useState('balance')
   const [balances, setBalances] = useState([])
   const [requests, setRequests] = useState([])
   const [leaveTypes, setLeaveTypes] = useState([])
   const [showApplyModal, setShowApplyModal] = useState(false)
   const [pendingApprovals, setPendingApprovals] = useState([])
+
+  // Encashment state
+  const [encashments, setEncashments] = useState([])
+  const [showEncashModal, setShowEncashModal] = useState(false)
+  const [encashForm, setEncashForm] = useState({ leaveTypeId: '', days: '', reason: '' })
+  const [encashSubmitting, setEncashSubmitting] = useState(false)
+  const [encashPendingApprovals, setEncashPendingApprovals] = useState([])
 
   // Form state
   const [formData, setFormData] = useState({
@@ -35,6 +46,13 @@ export default function LeaveManagement() {
     reason: ''
   })
   const [submitting, setSubmitting] = useState(false)
+
+  // Update active tab when URL changes
+  useEffect(() => {
+    if (tabFromUrl && ['balance', 'requests', 'approvals', 'encashment'].includes(tabFromUrl)) {
+      setActiveTab(tabFromUrl)
+    }
+  }, [tabFromUrl])
 
   useEffect(() => {
     if (status === 'unauthenticated') {
@@ -46,10 +64,11 @@ export default function LeaveManagement() {
 
   const fetchData = async () => {
     try {
-      const [balancesRes, requestsRes, typesRes] = await Promise.all([
-        fetch('/api/leave/balance'),
-        fetch('/api/leave/requests'),
-        fetch('/api/leave/types')
+      const [balancesRes, requestsRes, typesRes, encashRes] = await Promise.all([
+        fetch('/api/leave-balance'),
+        fetch('/api/leave-requests'),
+        fetch('/api/leave-types'),
+        fetch('/api/leave-encashment')
       ])
 
       if (balancesRes.ok) setBalances(await balancesRes.json())
@@ -59,12 +78,56 @@ export default function LeaveManagement() {
         setPendingApprovals(data.filter(r => r.status === 'pending' && r.userId !== session?.user?.id))
       }
       if (typesRes.ok) setLeaveTypes(await typesRes.json())
+      if (encashRes.ok) {
+        const encData = await encashRes.json()
+        setEncashments(encData)
+        setEncashPendingApprovals(encData.filter(e => e.status === 'pending' && e.userId !== session?.user?.id))
+      }
     } catch (error) {
       console.error('Error fetching data:', error)
       toast.error('Failed to load leave data')
     } finally {
       setLoading(false)
     }
+  }
+
+  const handleEncashSubmit = async (e) => {
+    e.preventDefault()
+    if (!encashForm.leaveTypeId || !encashForm.days) return toast.error('Leave type and days are required')
+    setEncashSubmitting(true)
+    try {
+      const res = await fetch('/api/leave-encashment', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ ...encashForm, days: parseInt(encashForm.days) })
+      })
+      const data = await res.json()
+      if (!res.ok) throw new Error(data.error)
+      toast.success('Encashment request submitted')
+      setShowEncashModal(false)
+      setEncashForm({ leaveTypeId: '', days: '', reason: '' })
+      fetchData()
+    } catch (err) { toast.error(err.message) }
+    finally { setEncashSubmitting(false) }
+  }
+
+  const handleEncashAction = async (id, action) => {
+    try {
+      const res = await fetch(`/api/leave-encashment/${id}`, {
+        method: 'PATCH',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ action })
+      })
+      if (!res.ok) throw new Error((await res.json()).error)
+      toast.success(`Encashment ${action}d`)
+      fetchData()
+    } catch (err) { toast.error(err.message) }
+  }
+
+  const handleTabChange = (tab) => {
+    setActiveTab(tab)
+    // Update URL without page reload
+    router.push(`/leave?tab=${tab}`, { scroll: false })
   }
 
   const handleApplyLeave = async (e) => {
@@ -76,7 +139,7 @@ export default function LeaveManagement() {
 
     setSubmitting(true)
     try {
-      const res = await fetch('/api/leave/requests', {
+      const res = await fetch('/api/leave-requests', {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify(formData)
@@ -100,26 +163,27 @@ export default function LeaveManagement() {
 
   const handleApproveReject = async (requestId, action) => {
     const confirmed = await confirm({
-      title: action === 'approved' ? 'Approve Leave' : 'Reject Leave',
-      message: `Are you sure you want to ${action === 'approved' ? 'approve' : 'reject'} this leave request?`,
-      confirmText: action === 'approved' ? 'Approve' : 'Reject',
-      type: action === 'approved' ? 'info' : 'danger'
+      title: action === 'approve' ? 'Approve Leave' : 'Reject Leave',
+      message: `Are you sure you want to ${action} this leave request?`,
+      confirmText: action === 'approve' ? 'Approve' : 'Reject',
+      type: action === 'approve' ? 'info' : 'danger'
     })
 
     if (!confirmed) return
 
     try {
-      const res = await fetch(`/api/leave/requests/${requestId}`, {
+      const res = await fetch(`/api/leave-requests/${requestId}`, {
         method: 'PATCH',
         headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ status: action })
+        body: JSON.stringify({ action })
       })
 
       if (res.ok) {
-        toast.success(`Leave ${action}!`)
+        toast.success(`Leave ${action}d!`)
         fetchData()
       } else {
-        toast.error('Failed to update request')
+        const data = await res.json()
+        toast.error(data.error || 'Failed to update request')
       }
     } catch (error) {
       toast.error('Error updating request')
@@ -146,6 +210,7 @@ export default function LeaveManagement() {
   const tabs = [
     { key: 'balance', label: 'Balance', icon: '💰' },
     { key: 'requests', label: 'My Requests', icon: '📋' },
+    { key: 'encashment', label: 'Encashment', icon: '🏧' },
     ...(session?.user?.role === 'admin' || session?.user?.role === 'hr' || session?.user?.role === 'manager'
       ? [{ key: 'approvals', label: 'Approvals', icon: '✅', badge: pendingApprovals.length }]
       : []
@@ -216,7 +281,7 @@ export default function LeaveManagement() {
             {tabs.map(tab => (
               <button
                 key={tab.key}
-                onClick={() => setActiveTab(tab.key)}
+                onClick={() => handleTabChange(tab.key)}
                 className={`px-3 sm:px-4 py-2 rounded-lg text-xs sm:text-sm font-medium transition-all flex items-center gap-1.5 sm:gap-2 whitespace-nowrap ${
                   activeTab === tab.key
                     ? 'bg-white dark:bg-slate-700 text-slate-900 dark:text-white shadow-md'
@@ -353,6 +418,51 @@ export default function LeaveManagement() {
           </div>
         )}
 
+        {/* Encashment Tab */}
+        {activeTab === 'encashment' && (
+          <div className="space-y-4">
+            <div className="flex justify-end">
+              <button onClick={() => setShowEncashModal(true)} className="px-4 py-2 bg-emerald-500 hover:bg-emerald-600 text-white rounded-xl text-sm font-medium flex items-center gap-2">
+                <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M12 4v16m8-8H4" /></svg>
+                Request Encashment
+              </button>
+            </div>
+            <div className="bg-white dark:bg-slate-800 rounded-2xl border border-slate-200 dark:border-slate-700 overflow-hidden">
+              {encashments.length === 0 ? (
+                <div className="text-center py-12">
+                  <span className="text-4xl">🏧</span>
+                  <p className="text-slate-500 dark:text-slate-400 mt-3 font-medium">No encashment requests</p>
+                </div>
+              ) : (
+                <div className="divide-y divide-slate-200 dark:divide-slate-700">
+                  {encashments.filter(e => e.userId === session?.user?.id || ['admin','hr','manager'].includes(session?.user?.role)).map(enc => (
+                    <div key={enc.id} className="p-4 flex items-center justify-between gap-4">
+                      <div>
+                        {enc.user && <p className="font-medium text-slate-900 dark:text-white text-sm">{enc.user.name}</p>}
+                        <p className="text-sm text-slate-600 dark:text-slate-300">{enc.leaveType?.name} — <strong>{enc.days} days</strong></p>
+                        {enc.amount && <p className="text-xs text-slate-400">Amount: ₹{enc.amount.toFixed(2)}</p>}
+                        <p className="text-xs text-slate-400 mt-0.5">{enc.reason}</p>
+                      </div>
+                      <div className="flex items-center gap-2 shrink-0">
+                        <span className={`text-xs px-2.5 py-1 rounded-full font-medium ${enc.status === 'approved' ? 'bg-green-100 text-green-700 dark:bg-green-500/20 dark:text-green-400' : enc.status === 'rejected' ? 'bg-red-100 text-red-700 dark:bg-red-500/20 dark:text-red-400' : 'bg-yellow-100 text-yellow-700 dark:bg-yellow-500/20 dark:text-yellow-400'}`}>{enc.status}</span>
+                        {enc.status === 'pending' && enc.userId !== session?.user?.id && ['admin','hr','manager'].includes(session?.user?.role) && (
+                          <>
+                            <button onClick={() => handleEncashAction(enc.id, 'approve')} className="px-2.5 py-1 bg-green-100 dark:bg-green-500/20 text-green-700 dark:text-green-400 rounded-lg text-xs font-medium hover:bg-green-200">Approve</button>
+                            <button onClick={() => handleEncashAction(enc.id, 'reject')} className="px-2.5 py-1 bg-red-100 dark:bg-red-500/20 text-red-700 dark:text-red-400 rounded-lg text-xs font-medium hover:bg-red-200">Reject</button>
+                          </>
+                        )}
+                        {enc.status === 'approved' && ['admin','hr'].includes(session?.user?.role) && (
+                          <button onClick={() => handleEncashAction(enc.id, 'process')} className="px-2.5 py-1 bg-blue-100 dark:bg-blue-500/20 text-blue-700 dark:text-blue-400 rounded-lg text-xs font-medium hover:bg-blue-200">Process</button>
+                        )}
+                      </div>
+                    </div>
+                  ))}
+                </div>
+              )}
+            </div>
+          </div>
+        )}
+
         {/* Approvals Tab */}
         {activeTab === 'approvals' && (
           <div className="bg-white dark:bg-slate-800 rounded-2xl border border-slate-200 dark:border-slate-700 shadow-lg overflow-hidden">
@@ -389,13 +499,13 @@ export default function LeaveManagement() {
                       </div>
                       <div className="flex gap-2 sm:justify-end">
                         <button
-                          onClick={() => handleApproveReject(request.id, 'rejected')}
+                          onClick={() => handleApproveReject(request.id, 'reject')}
                           className="flex-1 sm:flex-none px-3 sm:px-4 py-2 bg-red-100 dark:bg-red-900/30 text-red-600 dark:text-red-400 rounded-xl text-xs sm:text-sm font-medium"
                         >
                           Reject
                         </button>
                         <button
-                          onClick={() => handleApproveReject(request.id, 'approved')}
+                          onClick={() => handleApproveReject(request.id, 'approve')}
                           className="flex-1 sm:flex-none px-3 sm:px-4 py-2 bg-emerald-500 text-white rounded-xl text-xs sm:text-sm font-medium"
                         >
                           Approve
@@ -447,7 +557,7 @@ export default function LeaveManagement() {
                 >
                   <option value="">Select leave type</option>
                   {leaveTypes.map(type => (
-                    <option key={type.id} value={type.id}>{type.name}</option>
+                    <option key={type.id} value={type.id}>{type.name} {!type.isPaid && '(Unpaid)'}</option>
                   ))}
                 </select>
               </div>
@@ -526,6 +636,45 @@ export default function LeaveManagement() {
                 )}
               </button>
             </div>
+          </div>
+        </div>
+      )}
+
+      {/* Encashment Request Modal */}
+      {showEncashModal && (
+        <div className="fixed inset-0 bg-black/50 backdrop-blur-sm flex items-center justify-center z-50 p-4">
+          <div className="bg-white dark:bg-slate-800 rounded-2xl shadow-2xl w-full max-w-md">
+            <div className="px-5 py-4 border-b border-slate-200 dark:border-slate-700 flex items-center justify-between">
+              <h2 className="font-bold text-slate-900 dark:text-white">Request Leave Encashment</h2>
+              <button onClick={() => setShowEncashModal(false)} className="text-slate-400 hover:text-slate-600">
+                <svg className="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M6 18L18 6M6 6l12 12" /></svg>
+              </button>
+            </div>
+            <form onSubmit={handleEncashSubmit} className="p-5 space-y-4">
+              <div>
+                <label className="block text-sm font-medium text-slate-700 dark:text-slate-300 mb-1.5">Leave Type *</label>
+                <select value={encashForm.leaveTypeId} onChange={e => setEncashForm({ ...encashForm, leaveTypeId: e.target.value })} required className="w-full px-3 py-2.5 bg-slate-100 dark:bg-slate-700 border-0 rounded-xl text-slate-900 dark:text-white text-sm">
+                  <option value="">Select leave type</option>
+                  {leaveTypes.filter(t => t.isEncashable).map(t => (
+                    <option key={t.id} value={t.id}>{t.name}</option>
+                  ))}
+                </select>
+              </div>
+              <div>
+                <label className="block text-sm font-medium text-slate-700 dark:text-slate-300 mb-1.5">Days to Encash *</label>
+                <input type="number" value={encashForm.days} onChange={e => setEncashForm({ ...encashForm, days: e.target.value })} required min="1" placeholder="e.g. 3" className="w-full px-3 py-2.5 bg-slate-100 dark:bg-slate-700 border-0 rounded-xl text-slate-900 dark:text-white text-sm" />
+              </div>
+              <div>
+                <label className="block text-sm font-medium text-slate-700 dark:text-slate-300 mb-1.5">Reason</label>
+                <textarea value={encashForm.reason} onChange={e => setEncashForm({ ...encashForm, reason: e.target.value })} rows={3} placeholder="Optional reason..." className="w-full px-3 py-2.5 bg-slate-100 dark:bg-slate-700 border-0 rounded-xl text-slate-900 dark:text-white text-sm resize-none" />
+              </div>
+              <div className="flex gap-3">
+                <button type="button" onClick={() => setShowEncashModal(false)} className="flex-1 px-4 py-2.5 bg-slate-200 dark:bg-slate-700 text-slate-700 dark:text-slate-300 rounded-xl text-sm font-medium">Cancel</button>
+                <button type="submit" disabled={encashSubmitting} className="flex-1 px-4 py-2.5 bg-emerald-500 hover:bg-emerald-600 text-white rounded-xl text-sm font-medium disabled:opacity-50">
+                  {encashSubmitting ? 'Submitting...' : 'Submit'}
+                </button>
+              </div>
+            </form>
           </div>
         </div>
       )}

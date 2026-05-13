@@ -22,12 +22,21 @@ export default function AdminDashboard() {
   const [activeTab, setActiveTab] = useState('users')
   const [users, setUsers] = useState([])
   const [leaveTypes, setLeaveTypes] = useState([])
+  const [taskCategories, setTaskCategories] = useState([])
   const [showUserModal, setShowUserModal] = useState(false)
   const [showLeaveTypeModal, setShowLeaveTypeModal] = useState(false)
+  const [showCategoryModal, setShowCategoryModal] = useState(false)
+  const [showSubCategoryModal, setShowSubCategoryModal] = useState(false)
   const [editingUser, setEditingUser] = useState(null)
   const [editingLeaveType, setEditingLeaveType] = useState(null)
+  const [editingCategory, setEditingCategory] = useState(null)
+  const [editingSubCategory, setEditingSubCategory] = useState(null)
+  const [selectedCategoryForSub, setSelectedCategoryForSub] = useState(null)
   const [searchQuery, setSearchQuery] = useState('')
   const [submitting, setSubmitting] = useState(false)
+
+  const [categoryForm, setCategoryForm] = useState({ name: '', description: '', color: '#3b82f6' })
+  const [subCategoryForm, setSubCategoryForm] = useState({ name: '' })
 
   const [userForm, setUserForm] = useState({
     name: '', email: '', password: '', role: 'employee', department: '', employeeId: '', phone: ''
@@ -48,12 +57,14 @@ export default function AdminDashboard() {
 
   const fetchData = async () => {
     try {
-      const [usersRes, leaveTypesRes] = await Promise.all([
+      const [usersRes, leaveTypesRes, catRes] = await Promise.all([
         fetch('/api/users'),
-        fetch('/api/leave-types')
+        fetch('/api/leave-types'),
+        fetch('/api/task-categories')
       ])
       if (usersRes.ok) setUsers(await usersRes.json())
       if (leaveTypesRes.ok) setLeaveTypes(await leaveTypesRes.json())
+      if (catRes.ok) setTaskCategories(await catRes.json())
     } catch (error) {
       console.error('Error:', error)
     } finally {
@@ -170,6 +181,56 @@ export default function AdminDashboard() {
     setEditingLeaveType(null)
   }
 
+  const handleSaveCategory = async (e) => {
+    e.preventDefault()
+    setSubmitting(true)
+    try {
+      const url = '/api/task-categories'
+      const method = editingCategory ? 'PATCH' : 'POST'
+      const body = editingCategory
+        ? { id: editingCategory.id, ...categoryForm }
+        : categoryForm
+      const res = await fetch(url, { method, headers: { 'Content-Type': 'application/json' }, body: JSON.stringify(body) })
+      if (res.ok) { toast.success(editingCategory ? 'Updated!' : 'Created!'); setShowCategoryModal(false); resetCategoryForm(); fetchData() }
+      else { const d = await res.json(); toast.error(d.error || 'Failed') }
+    } catch { toast.error('Error') } finally { setSubmitting(false) }
+  }
+
+  const handleDeleteCategory = async (id) => {
+    const ok = await confirm({ title: 'Delete Category', message: 'Tasks using this category will keep their data. Continue?', confirmText: 'Delete', type: 'danger' })
+    if (!ok) return
+    await fetch(`/api/task-categories?id=${id}`, { method: 'DELETE' })
+    fetchData()
+  }
+
+  const handleSaveSubCategory = async (e) => {
+    e.preventDefault()
+    setSubmitting(true)
+    try {
+      const method = editingSubCategory ? 'PATCH' : 'POST'
+      const body = editingSubCategory
+        ? { id: editingSubCategory.id, isSubCategory: true, ...subCategoryForm }
+        : { ...subCategoryForm, categoryId: selectedCategoryForSub.id }
+      const res = await fetch('/api/task-categories', { method, headers: { 'Content-Type': 'application/json' }, body: JSON.stringify(body) })
+      if (res.ok) { toast.success(editingSubCategory ? 'Updated!' : 'Created!'); setShowSubCategoryModal(false); resetSubCategoryForm(); fetchData() }
+      else { const d = await res.json(); toast.error(d.error || 'Failed') }
+    } catch { toast.error('Error') } finally { setSubmitting(false) }
+  }
+
+  const handleDeleteSubCategory = async (id) => {
+    const ok = await confirm({ title: 'Delete Sub-category', message: 'Are you sure?', confirmText: 'Delete', type: 'danger' })
+    if (!ok) return
+    await fetch(`/api/task-categories?id=${id}&sub=1`, { method: 'DELETE' })
+    fetchData()
+  }
+
+  const resetCategoryForm = () => { setCategoryForm({ name: '', description: '', color: '#3b82f6' }); setEditingCategory(null) }
+  const resetSubCategoryForm = () => { setSubCategoryForm({ name: '' }); setEditingSubCategory(null); setSelectedCategoryForSub(null) }
+
+  const openEditCategory = (cat) => { setCategoryForm({ name: cat.name, description: cat.description || '', color: cat.color || '#3b82f6' }); setEditingCategory(cat); setShowCategoryModal(true) }
+  const openEditSubCategory = (sub, cat) => { setSubCategoryForm({ name: sub.name }); setEditingSubCategory(sub); setSelectedCategoryForSub(cat); setShowSubCategoryModal(true) }
+  const openAddSubCategory = (cat) => { resetSubCategoryForm(); setSelectedCategoryForSub(cat); setShowSubCategoryModal(true) }
+
   const openEditUser = (user) => {
     setUserForm({ name: user.name || '', email: user.email || '', password: '', role: user.role || 'employee', department: user.department || '', employeeId: user.employeeId || '', phone: user.phone || '' })
     setEditingUser(user)
@@ -244,22 +305,29 @@ export default function AdminDashboard() {
         <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-4 mb-6">
           <Link href="/permissions" className="bg-white dark:bg-slate-800 rounded-xl p-6 border border-slate-200 dark:border-slate-700 hover:shadow-lg transition-all">
             <div className="flex items-center gap-4">
-              <div className="w-12 h-12 bg-purple-100 dark:bg-purple-900/30 rounded-xl flex items-center justify-center">
-                <span className="text-2xl">🔐</span>
-              </div>
-              <div>
-                <h3 className="font-semibold text-slate-900 dark:text-white">Permissions</h3>
-                <p className="text-sm text-slate-500">Manage user access</p>
-              </div>
+              <div className="w-12 h-12 bg-purple-100 dark:bg-purple-900/30 rounded-xl flex items-center justify-center"><span className="text-2xl">🔐</span></div>
+              <div><h3 className="font-semibold text-slate-900 dark:text-white">Permissions</h3><p className="text-sm text-slate-500">Manage user access</p></div>
+            </div>
+          </Link>
+          <Link href="/admin/attendance" className="bg-white dark:bg-slate-800 rounded-xl p-6 border border-slate-200 dark:border-slate-700 hover:shadow-lg transition-all">
+            <div className="flex items-center gap-4">
+              <div className="w-12 h-12 bg-blue-100 dark:bg-blue-900/30 rounded-xl flex items-center justify-center"><span className="text-2xl">📋</span></div>
+              <div><h3 className="font-semibold text-slate-900 dark:text-white">Attendance</h3><p className="text-sm text-slate-500">Add / edit / delete records</p></div>
+            </div>
+          </Link>
+          <Link href="/admin/leave" className="bg-white dark:bg-slate-800 rounded-xl p-6 border border-slate-200 dark:border-slate-700 hover:shadow-lg transition-all">
+            <div className="flex items-center gap-4">
+              <div className="w-12 h-12 bg-cyan-100 dark:bg-cyan-900/30 rounded-xl flex items-center justify-center"><span className="text-2xl">🏖️</span></div>
+              <div><h3 className="font-semibold text-slate-900 dark:text-white">Leave Manager</h3><p className="text-sm text-slate-500">Create / approve / delete</p></div>
             </div>
           </Link>
         </div>
 
         {/* Tabs */}
-        <div className="flex gap-2 mb-6 border-b border-slate-200 dark:border-slate-700 pb-2">
-          {['users', 'leaveTypes'].map(tab => (
+        <div className="flex gap-2 mb-6 border-b border-slate-200 dark:border-slate-700 pb-2 flex-wrap">
+          {[['users', 'Users'], ['leaveTypes', 'Leave Types'], ['taskCategories', 'Task Categories']].map(([tab, label]) => (
             <button key={tab} onClick={() => setActiveTab(tab)} className={`px-4 py-2 rounded-lg text-sm font-medium transition-all ${activeTab === tab ? 'bg-blue-500 text-white' : 'text-slate-600 dark:text-slate-400 hover:bg-slate-100 dark:hover:bg-slate-700'}`}>
-              {tab === 'users' ? 'Users' : 'Leave Types'}
+              {label}
             </button>
           ))}
         </div>
@@ -332,6 +400,58 @@ export default function AdminDashboard() {
                 <p className="text-sm text-slate-400">Run: npx prisma db seed</p>
               </div>
             )}
+          </div>
+        )}
+
+        {/* Task Categories Tab */}
+        {activeTab === 'taskCategories' && (
+          <div className="space-y-4">
+            <div className="flex justify-end">
+              <button onClick={() => { resetCategoryForm(); setShowCategoryModal(true) }} className="px-4 py-2.5 bg-blue-500 text-white rounded-xl text-sm font-medium">+ Add Category</button>
+            </div>
+
+            {taskCategories.length === 0 && (
+              <div className="text-center py-12 bg-white dark:bg-slate-800 rounded-xl border border-slate-200 dark:border-slate-700">
+                <p className="text-2xl mb-2">📂</p>
+                <p className="text-slate-500">No task categories yet</p>
+              </div>
+            )}
+
+            {taskCategories.map(cat => (
+              <div key={cat.id} className="bg-white dark:bg-slate-800 rounded-xl border border-slate-200 dark:border-slate-700 overflow-hidden">
+                <div className="flex items-center justify-between px-4 py-3 border-b border-slate-100 dark:border-slate-700">
+                  <div className="flex items-center gap-3">
+                    <span className="w-3 h-3 rounded-full inline-block" style={{ backgroundColor: cat.color }}></span>
+                    <div>
+                      <p className="font-semibold text-slate-900 dark:text-white">{cat.name}</p>
+                      {cat.description && <p className="text-xs text-slate-500">{cat.description}</p>}
+                    </div>
+                  </div>
+                  <div className="flex items-center gap-2">
+                    <button onClick={() => openAddSubCategory(cat)} className="px-3 py-1 bg-slate-100 dark:bg-slate-700 text-slate-600 dark:text-slate-300 rounded-lg text-xs font-medium">+ Sub</button>
+                    <button onClick={() => openEditCategory(cat)} className="p-1.5 text-slate-400 hover:text-blue-500"><svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M15.232 5.232l3.536 3.536m-2.036-5.036a2.5 2.5 0 113.536 3.536L6.5 21.036H3v-3.572L16.732 3.732z" /></svg></button>
+                    <button onClick={() => handleDeleteCategory(cat.id)} className="p-1.5 text-slate-400 hover:text-red-500"><svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M19 7l-.867 12.142A2 2 0 0116.138 21H7.862a2 2 0 01-1.995-1.858L5 7m5 4v6m4-6v6m1-10V4a1 1 0 00-1-1h-4a1 1 0 00-1 1v3M4 7h16" /></svg></button>
+                  </div>
+                </div>
+                {cat.subCategories?.length > 0 ? (
+                  <div className="divide-y divide-slate-100 dark:divide-slate-700">
+                    {cat.subCategories.map(sub => (
+                      <div key={sub.id} className="flex items-center justify-between px-6 py-2.5">
+                        <span className="text-sm text-slate-700 dark:text-slate-300 flex items-center gap-2">
+                          <span className="text-slate-400">↳</span>{sub.name}
+                        </span>
+                        <div className="flex gap-1">
+                          <button onClick={() => openEditSubCategory(sub, cat)} className="p-1 text-slate-400 hover:text-blue-500"><svg className="w-3.5 h-3.5" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M15.232 5.232l3.536 3.536m-2.036-5.036a2.5 2.5 0 113.536 3.536L6.5 21.036H3v-3.572L16.732 3.732z" /></svg></button>
+                          <button onClick={() => handleDeleteSubCategory(sub.id)} className="p-1 text-slate-400 hover:text-red-500"><svg className="w-3.5 h-3.5" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M19 7l-.867 12.142A2 2 0 0116.138 21H7.862a2 2 0 01-1.995-1.858L5 7m5 4v6m4-6v6m1-10V4a1 1 0 00-1-1h-4a1 1 0 00-1 1v3M4 7h16" /></svg></button>
+                        </div>
+                      </div>
+                    ))}
+                  </div>
+                ) : (
+                  <p className="px-6 py-3 text-xs text-slate-400 italic">No sub-categories yet</p>
+                )}
+              </div>
+            ))}
           </div>
         )}
       </div>
@@ -446,6 +566,63 @@ export default function AdminDashboard() {
               <button type="button" onClick={() => setShowLeaveTypeModal(false)} className="flex-1 px-4 py-2.5 bg-slate-100 dark:bg-slate-700 text-slate-700 dark:text-slate-300 rounded-lg text-sm font-medium">Cancel</button>
               <button onClick={handleSaveLeaveType} disabled={submitting} className="flex-1 px-4 py-2.5 bg-emerald-500 text-white rounded-lg text-sm font-medium disabled:opacity-50">{submitting ? 'Saving...' : editingLeaveType ? 'Update' : 'Create'}</button>
             </div>
+          </div>
+        </div>
+      )}
+      {/* Category Modal */}
+      {showCategoryModal && (
+        <div className="fixed inset-0 bg-black/50 flex items-center justify-center z-50 p-4">
+          <div className="bg-white dark:bg-slate-800 rounded-2xl w-full max-w-sm">
+            <div className="px-5 py-4 border-b border-slate-200 dark:border-slate-700 flex items-center justify-between">
+              <h2 className="font-semibold text-slate-900 dark:text-white">{editingCategory ? 'Edit Category' : 'Add Category'}</h2>
+              <button onClick={() => setShowCategoryModal(false)} className="p-1 text-slate-400 hover:text-slate-600"><svg className="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M6 18L18 6M6 6l12 12" /></svg></button>
+            </div>
+            <form onSubmit={handleSaveCategory} className="p-5 space-y-4">
+              <div>
+                <label className="block text-sm font-medium text-slate-700 dark:text-slate-300 mb-1">Name *</label>
+                <input type="text" value={categoryForm.name} onChange={e => setCategoryForm({ ...categoryForm, name: e.target.value })} required className="w-full px-3 py-2 bg-slate-50 dark:bg-slate-700 border border-slate-200 dark:border-slate-600 rounded-lg text-sm text-slate-900 dark:text-white" />
+              </div>
+              <div>
+                <label className="block text-sm font-medium text-slate-700 dark:text-slate-300 mb-1">Description</label>
+                <input type="text" value={categoryForm.description} onChange={e => setCategoryForm({ ...categoryForm, description: e.target.value })} className="w-full px-3 py-2 bg-slate-50 dark:bg-slate-700 border border-slate-200 dark:border-slate-600 rounded-lg text-sm text-slate-900 dark:text-white" />
+              </div>
+              <div>
+                <label className="block text-sm font-medium text-slate-700 dark:text-slate-300 mb-1">Color</label>
+                <div className="flex gap-2">
+                  <input type="color" value={categoryForm.color} onChange={e => setCategoryForm({ ...categoryForm, color: e.target.value })} className="w-10 h-10 rounded border-0 cursor-pointer" />
+                  <input type="text" value={categoryForm.color} onChange={e => setCategoryForm({ ...categoryForm, color: e.target.value })} className="flex-1 px-3 py-2 bg-slate-50 dark:bg-slate-700 border border-slate-200 dark:border-slate-600 rounded-lg text-sm text-slate-900 dark:text-white" />
+                </div>
+              </div>
+              <div className="flex gap-3 pt-1">
+                <button type="button" onClick={() => setShowCategoryModal(false)} className="flex-1 px-4 py-2.5 bg-slate-100 dark:bg-slate-700 text-slate-700 dark:text-slate-300 rounded-lg text-sm">Cancel</button>
+                <button type="submit" disabled={submitting} className="flex-1 px-4 py-2.5 bg-blue-500 text-white rounded-lg text-sm disabled:opacity-50">{submitting ? 'Saving...' : editingCategory ? 'Update' : 'Create'}</button>
+              </div>
+            </form>
+          </div>
+        </div>
+      )}
+
+      {/* Sub-Category Modal */}
+      {showSubCategoryModal && (
+        <div className="fixed inset-0 bg-black/50 flex items-center justify-center z-50 p-4">
+          <div className="bg-white dark:bg-slate-800 rounded-2xl w-full max-w-sm">
+            <div className="px-5 py-4 border-b border-slate-200 dark:border-slate-700 flex items-center justify-between">
+              <div>
+                <h2 className="font-semibold text-slate-900 dark:text-white">{editingSubCategory ? 'Edit Sub-category' : 'Add Sub-category'}</h2>
+                {selectedCategoryForSub && <p className="text-xs text-slate-500">Under: {selectedCategoryForSub.name}</p>}
+              </div>
+              <button onClick={() => setShowSubCategoryModal(false)} className="p-1 text-slate-400 hover:text-slate-600"><svg className="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M6 18L18 6M6 6l12 12" /></svg></button>
+            </div>
+            <form onSubmit={handleSaveSubCategory} className="p-5 space-y-4">
+              <div>
+                <label className="block text-sm font-medium text-slate-700 dark:text-slate-300 mb-1">Name *</label>
+                <input type="text" value={subCategoryForm.name} onChange={e => setSubCategoryForm({ ...subCategoryForm, name: e.target.value })} required className="w-full px-3 py-2 bg-slate-50 dark:bg-slate-700 border border-slate-200 dark:border-slate-600 rounded-lg text-sm text-slate-900 dark:text-white" />
+              </div>
+              <div className="flex gap-3 pt-1">
+                <button type="button" onClick={() => setShowSubCategoryModal(false)} className="flex-1 px-4 py-2.5 bg-slate-100 dark:bg-slate-700 text-slate-700 dark:text-slate-300 rounded-lg text-sm">Cancel</button>
+                <button type="submit" disabled={submitting} className="flex-1 px-4 py-2.5 bg-blue-500 text-white rounded-lg text-sm disabled:opacity-50">{submitting ? 'Saving...' : editingSubCategory ? 'Update' : 'Create'}</button>
+              </div>
+            </form>
           </div>
         </div>
       )}

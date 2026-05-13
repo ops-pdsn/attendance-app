@@ -9,6 +9,16 @@ export default function DayDetails({ date, tasks, attendance, holidays, onAddTas
   const [taskTitle, setTaskTitle] = useState('')
   const [taskNotes, setTaskNotes] = useState('')
   const [taskPriority, setTaskPriority] = useState('medium')
+  const [taskCategoryId, setTaskCategoryId] = useState('')
+  const [taskSubCategoryId, setTaskSubCategoryId] = useState('')
+  const [categories, setCategories] = useState([])
+
+  useEffect(() => {
+    fetch('/api/task-categories').then(r => r.ok ? r.json() : []).then(setCategories).catch(() => {})
+  }, [])
+
+  const selectedCategory = categories.find(c => c.id === taskCategoryId)
+  const subCategories = selectedCategory?.subCategories || []
   const [attendanceStatus, setAttendanceStatus] = useState('office')
   const [attendanceSession, setAttendanceSession] = useState('full_day')
   const [attendanceNotes, setAttendanceNotes] = useState('')
@@ -48,14 +58,18 @@ export default function DayDetails({ date, tasks, attendance, holidays, onAddTas
     await onAddTask({
       title: taskTitle,
       date: date.toISOString(),
-      type: 'daily',
+      type: taskCategoryId ? (selectedCategory?.name || 'daily') : 'daily',
       priority: taskPriority,
-      notes: taskNotes
+      notes: taskNotes,
+      ...(taskCategoryId && { categoryId: taskCategoryId }),
+      ...(taskSubCategoryId && { subCategoryId: taskSubCategoryId })
     })
-    
+
     setTaskTitle('')
     setTaskNotes('')
     setTaskPriority('medium')
+    setTaskCategoryId('')
+    setTaskSubCategoryId('')
     setShowTaskForm(false)
   }
   
@@ -479,6 +493,36 @@ export default function DayDetails({ date, tasks, attendance, holidays, onAddTas
               </div>
             </div>
             
+            {/* Category & Sub-category */}
+            {categories.length > 0 && (
+              <div className="mb-2 grid grid-cols-2 gap-2">
+                <div>
+                  <label className="block text-xs text-gray-600 dark:text-gray-400 mb-1">Category</label>
+                  <select
+                    value={taskCategoryId}
+                    onChange={e => { setTaskCategoryId(e.target.value); setTaskSubCategoryId('') }}
+                    className="w-full px-2 py-1.5 border border-gray-300 dark:border-gray-600 rounded text-sm bg-white dark:bg-gray-700 text-gray-900 dark:text-white"
+                  >
+                    <option value="">None</option>
+                    {categories.map(c => <option key={c.id} value={c.id}>{c.name}</option>)}
+                  </select>
+                </div>
+                {subCategories.length > 0 && (
+                  <div>
+                    <label className="block text-xs text-gray-600 dark:text-gray-400 mb-1">Sub-category</label>
+                    <select
+                      value={taskSubCategoryId}
+                      onChange={e => setTaskSubCategoryId(e.target.value)}
+                      className="w-full px-2 py-1.5 border border-gray-300 dark:border-gray-600 rounded text-sm bg-white dark:bg-gray-700 text-gray-900 dark:text-white"
+                    >
+                      <option value="">None</option>
+                      {subCategories.map(s => <option key={s.id} value={s.id}>{s.name}</option>)}
+                    </select>
+                  </div>
+                )}
+              </div>
+            )}
+
             <input
               type="text"
               placeholder="Notes (optional)"
@@ -500,6 +544,8 @@ export default function DayDetails({ date, tasks, attendance, holidays, onAddTas
                   setTaskTitle('')
                   setTaskNotes('')
                   setTaskPriority('medium')
+                  setTaskCategoryId('')
+                  setTaskSubCategoryId('')
                 }}
                 className="px-4 py-2 bg-gray-200 dark:bg-gray-700 text-gray-700 dark:text-gray-300 rounded hover:bg-gray-300 dark:hover:bg-gray-600 transition text-sm"
               >

@@ -9,19 +9,64 @@ import UserNav from '@/components/UserNav'
 
 export const dynamic = 'force-dynamic'
 
-// =====================================================
-// MODULES - ONLY YOUR EXISTING PAGES
-// =====================================================
-const MODULES = [
-  { id: 'timesheet', name: 'Time Sheet', icon: '⏱️', description: 'Punch-in/out and time tracking' },
-  { id: 'leave', name: 'Leave', icon: '🏖️', description: 'Apply and manage leaves' },
-  { id: 'shifts', name: 'Shifts', icon: '🕐', description: 'View and manage shifts' },
-  { id: 'notifications', name: 'Notifications', icon: '🔔', description: 'View notifications' },
-  { id: 'team', name: 'Team', icon: '👥', description: 'Team dashboard access' },
-  { id: 'analytics', name: 'Analytics', icon: '📊', description: 'View analytics and reports' },
-  { id: 'payroll', name: 'Payroll', icon: '💰', description: 'View and manage payroll' },
-  { id: 'admin', name: 'Admin', icon: '⚙️', description: 'Admin dashboard access' }
+const MODULE_GROUPS = [
+  {
+    label: 'Attendance',
+    color: 'bg-blue-50 dark:bg-blue-900/10',
+    modules: [
+      { id: 'timesheet', name: 'Time Sheet', icon: '⏱️', description: 'Punch-in/out and time tracking' },
+      { id: 'attendance', name: 'Attendance', icon: '📋', description: 'View/manage attendance records' },
+      { id: 'regularization', name: 'Regularization', icon: '📝', description: 'Correct attendance entries' },
+      { id: 'overtime', name: 'Overtime', icon: '⏰', description: 'Log overtime & comp-off' },
+    ]
+  },
+  {
+    label: 'Leave',
+    color: 'bg-cyan-50 dark:bg-cyan-900/10',
+    modules: [
+      { id: 'leave', name: 'Leave', icon: '🏖️', description: 'Apply and manage leaves' },
+    ]
+  },
+  {
+    label: 'Shifts',
+    color: 'bg-indigo-50 dark:bg-indigo-900/10',
+    modules: [
+      { id: 'shifts', name: 'Shifts', icon: '🕐', description: 'View and manage shifts' },
+    ]
+  },
+  {
+    label: 'Team & HR',
+    color: 'bg-amber-50 dark:bg-amber-900/10',
+    modules: [
+      { id: 'team', name: 'Team', icon: '👥', description: 'Team dashboard and calendar' },
+      { id: 'notifications', name: 'Notifications', icon: '🔔', description: 'View notifications' },
+    ]
+  },
+  {
+    label: 'Analytics & Reports',
+    color: 'bg-purple-50 dark:bg-purple-900/10',
+    modules: [
+      { id: 'analytics', name: 'Analytics', icon: '📊', description: 'View analytics and reports' },
+    ]
+  },
+  {
+    label: 'Finance',
+    color: 'bg-emerald-50 dark:bg-emerald-900/10',
+    modules: [
+      { id: 'payroll', name: 'Payroll', icon: '💰', description: 'View and manage payroll' },
+    ]
+  },
+  {
+    label: 'System',
+    color: 'bg-red-50 dark:bg-red-900/10',
+    modules: [
+      { id: 'admin', name: 'Admin', icon: '⚙️', description: 'Admin dashboard access' },
+    ]
+  },
 ]
+
+// flat list used by preset logic
+const MODULES = MODULE_GROUPS.flatMap(g => g.modules)
 
 const ACTIONS = [
   { id: 'canRead', name: 'Read', color: 'blue' },
@@ -140,19 +185,22 @@ export default function PermissionsPage() {
         newPermissions[m.id] = { canRead: false, canWrite: false, canEdit: false, canDelete: false }
       })
     } else if (preset === 'employee') {
-      // Standard employee: only basic access
-      newPermissions['timesheet'] = { canRead: true, canWrite: true, canEdit: false, canDelete: false }
+      newPermissions['timesheet'] = { canRead: true, canWrite: true, canEdit: true, canDelete: true }
+      newPermissions['attendance'] = { canRead: true, canWrite: false, canEdit: false, canDelete: false }
+      newPermissions['regularization'] = { canRead: true, canWrite: true, canEdit: false, canDelete: false }
+      newPermissions['overtime'] = { canRead: true, canWrite: true, canEdit: false, canDelete: false }
       newPermissions['leave'] = { canRead: true, canWrite: true, canEdit: false, canDelete: false }
       newPermissions['shifts'] = { canRead: true, canWrite: false, canEdit: false, canDelete: false }
       newPermissions['notifications'] = { canRead: true, canWrite: false, canEdit: false, canDelete: false }
-      // No access to these
       newPermissions['team'] = { canRead: false, canWrite: false, canEdit: false, canDelete: false }
       newPermissions['analytics'] = { canRead: false, canWrite: false, canEdit: false, canDelete: false }
       newPermissions['payroll'] = { canRead: false, canWrite: false, canEdit: false, canDelete: false }
       newPermissions['admin'] = { canRead: false, canWrite: false, canEdit: false, canDelete: false }
     } else if (preset === 'manager') {
-      // Manager: more access but not admin
       newPermissions['timesheet'] = { canRead: true, canWrite: true, canEdit: true, canDelete: false }
+      newPermissions['attendance'] = { canRead: true, canWrite: true, canEdit: true, canDelete: false }
+      newPermissions['regularization'] = { canRead: true, canWrite: true, canEdit: true, canDelete: false }
+      newPermissions['overtime'] = { canRead: true, canWrite: true, canEdit: true, canDelete: false }
       newPermissions['leave'] = { canRead: true, canWrite: true, canEdit: true, canDelete: false }
       newPermissions['shifts'] = { canRead: true, canWrite: true, canEdit: false, canDelete: false }
       newPermissions['notifications'] = { canRead: true, canWrite: false, canEdit: false, canDelete: false }
@@ -347,10 +395,10 @@ export default function PermissionsPage() {
                   </div>
                 </div>
 
-                {/* Permission Matrix */}
+                {/* Permission Matrix — grouped */}
                 <div className="overflow-x-auto">
                   <table className="w-full">
-                    <thead className="bg-slate-50 dark:bg-slate-700/50">
+                    <thead className="bg-slate-50 dark:bg-slate-700/50 sticky top-0 z-10">
                       <tr>
                         <th className="text-left px-4 py-3 text-xs font-semibold text-slate-500">Module</th>
                         {ACTIONS.map(action => (
@@ -361,49 +409,71 @@ export default function PermissionsPage() {
                         <th className="text-center px-3 py-3 text-xs font-semibold text-slate-500">All</th>
                       </tr>
                     </thead>
-                    <tbody className="divide-y divide-slate-200 dark:divide-slate-700">
-                      {MODULES.map(module => (
-                        <tr key={module.id} className="hover:bg-slate-50 dark:hover:bg-slate-700/30">
-                          <td className="px-4 py-3">
-                            <div className="flex items-center gap-2">
-                              <span className="text-lg">{module.icon}</span>
-                              <div>
-                                <p className="font-medium text-slate-900 dark:text-white text-sm">{module.name}</p>
-                                <p className="text-xs text-slate-500 hidden sm:block">{module.description}</p>
+                    <tbody>
+                      {MODULE_GROUPS.map(group => (
+                        <>
+                          {/* Group header row */}
+                          <tr key={`group-${group.label}`} className={group.color}>
+                            <td colSpan={ACTIONS.length + 2} className="px-4 py-1.5">
+                              <div className="flex items-center justify-between">
+                                <span className="text-xs font-bold text-slate-600 dark:text-slate-300 uppercase tracking-wider">{group.label}</span>
+                                <button
+                                  onClick={() => {
+                                    const allOn = group.modules.every(m => ACTIONS.every(a => permissions[m.id]?.[a.id]))
+                                    const update = {}
+                                    group.modules.forEach(m => {
+                                      update[m.id] = { canRead: !allOn, canWrite: !allOn, canEdit: !allOn, canDelete: !allOn }
+                                    })
+                                    setPermissions(prev => ({ ...prev, ...update }))
+                                  }}
+                                  className="text-xs text-slate-500 hover:text-slate-700 dark:hover:text-slate-300 px-2 py-0.5 rounded bg-white/50 dark:bg-slate-700/50"
+                                >
+                                  Toggle Group
+                                </button>
                               </div>
-                            </div>
-                          </td>
-                          {ACTIONS.map(action => (
-                            <td key={action.id} className="text-center px-3 py-3">
-                              <button
-                                onClick={() => togglePermission(module.id, action.id)}
-                                className={`w-8 h-8 rounded-lg flex items-center justify-center transition-colors ${
-                                  permissions[module.id]?.[action.id]
-                                    ? 'bg-emerald-100 dark:bg-emerald-900/30 text-emerald-600'
-                                    : 'bg-slate-100 dark:bg-slate-700 text-slate-400'
-                                }`}
-                              >
-                                {permissions[module.id]?.[action.id] ? (
-                                  <svg className="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                                    <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M5 13l4 4L19 7" />
-                                  </svg>
-                                ) : (
-                                  <svg className="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                                    <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M6 18L18 6M6 6l12 12" />
-                                  </svg>
-                                )}
-                              </button>
                             </td>
+                          </tr>
+                          {/* Module rows */}
+                          {group.modules.map(module => (
+                            <tr key={module.id} className="border-t border-slate-100 dark:border-slate-700 hover:bg-slate-50 dark:hover:bg-slate-700/30">
+                              <td className="px-4 py-2.5 pl-6">
+                                <div className="flex items-center gap-2">
+                                  <span className="text-base">{module.icon}</span>
+                                  <div>
+                                    <p className="font-medium text-slate-900 dark:text-white text-sm">{module.name}</p>
+                                    <p className="text-xs text-slate-500 hidden sm:block">{module.description}</p>
+                                  </div>
+                                </div>
+                              </td>
+                              {ACTIONS.map(action => (
+                                <td key={action.id} className="text-center px-3 py-2.5">
+                                  <button
+                                    onClick={() => togglePermission(module.id, action.id)}
+                                    className={`w-8 h-8 rounded-lg flex items-center justify-center mx-auto transition-colors ${
+                                      permissions[module.id]?.[action.id]
+                                        ? 'bg-emerald-100 dark:bg-emerald-900/30 text-emerald-600'
+                                        : 'bg-slate-100 dark:bg-slate-700 text-slate-400'
+                                    }`}
+                                  >
+                                    {permissions[module.id]?.[action.id] ? (
+                                      <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M5 13l4 4L19 7" /></svg>
+                                    ) : (
+                                      <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M6 18L18 6M6 6l12 12" /></svg>
+                                    )}
+                                  </button>
+                                </td>
+                              ))}
+                              <td className="text-center px-3 py-2.5">
+                                <button
+                                  onClick={() => toggleAllForModule(module.id)}
+                                  className="px-2 py-1 bg-slate-100 dark:bg-slate-700 text-slate-600 dark:text-slate-400 rounded text-xs hover:bg-slate-200 dark:hover:bg-slate-600"
+                                >
+                                  Toggle
+                                </button>
+                              </td>
+                            </tr>
                           ))}
-                          <td className="text-center px-3 py-3">
-                            <button
-                              onClick={() => toggleAllForModule(module.id)}
-                              className="px-2 py-1 bg-slate-100 dark:bg-slate-700 text-slate-600 dark:text-slate-400 rounded text-xs hover:bg-slate-200 dark:hover:bg-slate-600"
-                            >
-                              Toggle
-                            </button>
-                          </td>
-                        </tr>
+                        </>
                       ))}
                     </tbody>
                   </table>

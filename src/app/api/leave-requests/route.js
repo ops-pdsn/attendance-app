@@ -107,11 +107,15 @@ export async function POST(request) {
     }
 
     const body = await request.json()
-    const { leaveTypeId, startDate, endDate, type, reason, emergencyContact } = body
+    const { leaveTypeId, startDate, endDate, type, reason, emergencyContact, userId: targetUserId, adminOverride } = body
 
     if (!leaveTypeId || !startDate || !endDate) {
       return NextResponse.json({ error: 'Leave type, start date, and end date are required' }, { status: 400 })
     }
+
+    const isAdmin = ['admin', 'hr'].includes(session.user.role)
+    // Admin can create leave for another user
+    const effectiveUserId = (isAdmin && adminOverride && targetUserId) ? targetUserId : session.user.id
 
     const start = new Date(startDate)
     const end = new Date(endDate)
@@ -142,7 +146,7 @@ export async function POST(request) {
     const balance = await prisma.leaveBalance.findUnique({
       where: {
         userId_leaveTypeId_year: {
-          userId: session.user.id,
+          userId: effectiveUserId,
           leaveTypeId,
           year
         }
@@ -170,7 +174,7 @@ export async function POST(request) {
     // Check for overlapping requests
     const overlapping = await prisma.leaveRequest.findFirst({
       where: {
-        userId: session.user.id,
+        userId: effectiveUserId,
         status: { in: ['pending', 'approved'] },
         OR: [
           {
@@ -185,10 +189,16 @@ export async function POST(request) {
       return NextResponse.json({ error: 'You already have a leave request for these dates' }, { status: 400 })
     }
 
+    // Get user info for notifications
+    const user = await prisma.user.findUnique({
+      where: { id: effectiveUserId },
+      include: { manager: true }
+    })
+
     // Create leave request
     const leaveRequest = await prisma.leaveRequest.create({
       data: {
-        userId: session.user.id,
+        userId: effectiveUserId,
         leaveTypeId,
         startDate: start,
         endDate: end,
@@ -214,25 +224,25 @@ export async function POST(request) {
       })
     }
 
-    // Create notification for manager
-    const user = await prisma.user.findUnique({
-      where: { id: session.user.id },
-      include: { manager: true }
-    })
+    const dateRange = `${start.toLocaleDateString()} - ${end.toLocaleDateString()}`
 
+    // ✅ Notification links directly to the request detail page
+    const requestLink = `/leave/requests/${leaveRequest.id}`
+
+    // Create notification for manager
     if (user?.manager) {
       await prisma.notification.create({
         data: {
           userId: user.manager.id,
-          title: 'New Leave Request',
-          message: `${user.name} has requested ${days} day(s) of ${leaveType.name} from ${start.toLocaleDateString()} to ${end.toLocaleDateString()}`,
+          title: '🆕 New Leave Request',
+          message: `${user.name} has requested ${days} day(s) of ${leaveType.name} (${dateRange})`,
           type: 'leave',
-          link: '/leave/approvals'
+          link: requestLink
         }
       })
     }
 
-    // Also notify HR
+    // Also notify HR/Admin
     const hrUsers = await prisma.user.findMany({
       where: { role: { in: ['hr', 'admin'] } }
     })
@@ -242,10 +252,10 @@ export async function POST(request) {
         await prisma.notification.create({
           data: {
             userId: hr.id,
-            title: 'New Leave Request',
+            title: '🆕 New Leave Request',
             message: `${user?.name} has requested ${days} day(s) of ${leaveType.name}`,
             type: 'leave',
-            link: '/leave/approvals'
+            link: requestLink
           }
         })
       }

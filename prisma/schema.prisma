@@ -20,24 +20,88 @@ model User {
   employeeId    String?  @unique
   phone         String?
   isActive      Boolean  @default(true)
+  dateOfBirth   DateTime?
 
   // Manager hierarchy
   managerId     String?
   manager       User?    @relation("UserManager", fields: [managerId], references: [id])
   subordinates  User[]   @relation("UserManager")
 
+  // Payroll: Earnings
+  basicSalary        Float?
+  hra                Float?
+  da                 Float?
+  conveyance         Float?
+  medicalAllowance   Float?
+  specialAllowance   Float?
+  otherAllowances    Float?
+
+  // Payroll: Deductions
+  pf                 Float?
+  esi                Float?
+  professionalTax    Float?
+  tds                Float?
+  otherDeductions    Float?
+
+  // Bank Details
+  bankAccountNumber  String?
+  bankName           String?
+  ifscCode           String?
+  bankBranch         String?
+
+  // Tax & Compliance
+  panNumber          String?
+  uanNumber          String?
+  esiNumber          String?
+
+  // Employment Details
+  dateOfJoining      DateTime?
+  dateOfLeaving      DateTime?
+  employmentType     String?
+
   createdAt     DateTime @default(now())
   updatedAt     DateTime @updatedAt
 
-  // Relations
+  // Core relations
   userShifts      UserShift[]
-  tasks           Task[]
+  tasks           Task[]         @relation("TaskOwner")
+  assignedTasks   Task[]         @relation("TaskAssignee")
   attendance      Attendance[]
   leaveBalances   LeaveBalance[]
   leaveRequests   LeaveRequest[] @relation("LeaveRequester")
   leaveApprovals  LeaveRequest[] @relation("LeaveApprover")
   notifications   Notification[]
   permissions     Permission[]
+
+  // Feature 1: Regularization
+  regularizationRequests AttendanceRegularization[] @relation("RegularizationRequests")
+  regularizationReviews  AttendanceRegularization[] @relation("RegularizationReviews")
+
+  // Feature 2: Overtime & Comp-off
+  overtimeRequests  OvertimeRequest[] @relation("OvertimeRequests")
+  overtimeApprovals OvertimeRequest[] @relation("OvertimeApprovals")
+  compOffBalance    CompOffBalance[]
+
+  // Feature 7: Announcements
+  announcements Announcement[]
+
+  // Feature 9: Birthday — dateOfBirth field added above
+
+  // Feature 10: Shift Swap
+  shiftSwapsMade     ShiftSwapRequest[] @relation("SwapRequester")
+  shiftSwapsReceived ShiftSwapRequest[] @relation("SwapTarget")
+  shiftSwapApprovals ShiftSwapRequest[] @relation("SwapApprover")
+
+  // Feature 11: Leave Encashment
+  leaveEncashments    LeaveEncashment[] @relation("EncashmentUser")
+  encashmentApprovals LeaveEncashment[] @relation("EncashmentApprover")
+
+  // Feature 13: Documents
+  documents         Document[] @relation("UserDocuments")
+  uploadedDocuments Document[] @relation("DocumentUploader")
+
+  // Feature 14: Audit Logs
+  auditLogs AuditLog[]
 
   @@index([email])
   @@index([managerId])
@@ -52,15 +116,57 @@ model Task {
   completed Boolean  @default(false)
   notes     String?
 
+  // Feature 3: Task assignment
+  assignedToId String?
+  assignedTo   User?    @relation("TaskAssignee", fields: [assignedToId], references: [id])
+
+  // Category & Sub-category
+  categoryId    String?
+  category      TaskCategory?    @relation(fields: [categoryId], references: [id])
+  subCategoryId String?
+  subCategory   TaskSubCategory? @relation(fields: [subCategoryId], references: [id])
+
   userId    String
-  user      User     @relation(fields: [userId], references: [id], onDelete: Cascade)
+  user      User     @relation("TaskOwner", fields: [userId], references: [id], onDelete: Cascade)
 
   createdAt DateTime @default(now())
   updatedAt DateTime @updatedAt
 
   @@index([userId])
+  @@index([assignedToId])
   @@index([date])
   @@index([priority])
+  @@index([categoryId])
+}
+
+model TaskCategory {
+  id            String            @id @default(cuid())
+  name          String            @unique
+  description   String?
+  color         String            @default("#3b82f6")
+  isActive      Boolean           @default(true)
+  subCategories TaskSubCategory[]
+  tasks         Task[]
+
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+
+  @@index([name])
+}
+
+model TaskSubCategory {
+  id         String       @id @default(cuid())
+  name       String
+  categoryId String
+  category   TaskCategory @relation(fields: [categoryId], references: [id], onDelete: Cascade)
+  isActive   Boolean      @default(true)
+  tasks      Task[]
+
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+
+  @@unique([name, categoryId])
+  @@index([categoryId])
 }
 
 model Attendance {
@@ -137,12 +243,14 @@ model LeaveType {
   requiresApproval Boolean  @default(true)
   isActive         Boolean  @default(true)
   isPaid           Boolean  @default(true)
+  isEncashable     Boolean  @default(false)
 
   createdAt        DateTime @default(now())
   updatedAt        DateTime @updatedAt
 
   leaveBalances    LeaveBalance[]
   leaveRequests    LeaveRequest[]
+  leaveEncashments LeaveEncashment[]
 
   @@index([code])
 }
@@ -229,7 +337,9 @@ model Shift {
   createdAt     DateTime @default(now())
   updatedAt     DateTime @updatedAt
 
-  userShifts    UserShift[]
+  userShifts         UserShift[]
+  swapRequestsOffered  ShiftSwapRequest[] @relation("SwapRequesterShift")
+  swapRequestsReceived ShiftSwapRequest[] @relation("SwapTargetShift")
 }
 
 model UserShift {
@@ -266,4 +376,196 @@ model Permission {
 
   @@unique([userId, module])
   @@index([userId])
+}
+
+// ─── Feature 1: Attendance Regularization ────────────────────────────────────
+model AttendanceRegularization {
+  id                String    @id @default(cuid())
+  date              DateTime
+  reason            String
+  requestedStatus   String
+  requestedPunchIn  DateTime?
+  requestedPunchOut DateTime?
+  requestedSession  String?
+  status            String    @default("pending") // pending, approved, rejected
+  rejectionReason   String?
+
+  userId     String
+  user       User   @relation("RegularizationRequests", fields: [userId], references: [id], onDelete: Cascade)
+
+  reviewedBy  String?
+  reviewer    User?     @relation("RegularizationReviews", fields: [reviewedBy], references: [id])
+  reviewedAt  DateTime?
+
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+
+  @@index([userId])
+  @@index([status])
+  @@index([date])
+}
+
+// ─── Feature 2: Overtime & Comp-off ──────────────────────────────────────────
+model OvertimeRequest {
+  id              String    @id @default(cuid())
+  date            DateTime
+  hours           Float
+  reason          String
+  status          String    @default("pending") // pending, approved, rejected
+  compOffGranted  Boolean   @default(false)
+  rejectionReason String?
+
+  userId     String
+  user       User   @relation("OvertimeRequests", fields: [userId], references: [id], onDelete: Cascade)
+
+  approvedBy  String?
+  approver    User?     @relation("OvertimeApprovals", fields: [approvedBy], references: [id])
+  approvedAt  DateTime?
+
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+
+  @@index([userId])
+  @@index([status])
+  @@index([date])
+}
+
+model CompOffBalance {
+  id     String @id @default(cuid())
+  year   Int
+  earned Float  @default(0)
+  used   Float  @default(0)
+
+  userId String
+  user   User   @relation(fields: [userId], references: [id], onDelete: Cascade)
+
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+
+  @@unique([userId, year])
+  @@index([userId])
+}
+
+// ─── Feature 7: Announcements ────────────────────────────────────────────────
+model Announcement {
+  id         String    @id @default(cuid())
+  title      String
+  content    String
+  type       String    @default("info") // info, warning, urgent, event
+  targetRole String    @default("all")  // all, employee, manager, hr, admin
+  isPinned   Boolean   @default(false)
+  expiresAt  DateTime?
+
+  authorId String
+  author   User   @relation(fields: [authorId], references: [id], onDelete: Cascade)
+
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+
+  @@index([authorId])
+  @@index([type])
+  @@index([targetRole])
+}
+
+// ─── Feature 10: Shift Swap Requests ─────────────────────────────────────────
+model ShiftSwapRequest {
+  id     String   @id @default(cuid())
+  date   DateTime
+  reason String?
+  status String   @default("pending") // pending, accepted, rejected, manager_approved
+
+  requesterId      String
+  requester        User  @relation("SwapRequester", fields: [requesterId], references: [id], onDelete: Cascade)
+
+  targetUserId     String
+  targetUser       User  @relation("SwapTarget", fields: [targetUserId], references: [id], onDelete: Cascade)
+
+  requesterShiftId String
+  requesterShift   Shift @relation("SwapRequesterShift", fields: [requesterShiftId], references: [id])
+
+  targetShiftId    String
+  targetShift      Shift @relation("SwapTargetShift", fields: [targetShiftId], references: [id])
+
+  approvedBy  String?
+  approver    User?     @relation("SwapApprover", fields: [approvedBy], references: [id])
+  approvedAt  DateTime?
+
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+
+  @@index([requesterId])
+  @@index([targetUserId])
+  @@index([status])
+}
+
+// ─── Feature 11: Leave Encashment ────────────────────────────────────────────
+model LeaveEncashment {
+  id          String    @id @default(cuid())
+  year        Int
+  days        Float
+  amount      Float?
+  status      String    @default("pending") // pending, approved, rejected, processed
+  reason      String?
+  rejectionReason String?
+
+  userId      String
+  user        User      @relation("EncashmentUser", fields: [userId], references: [id], onDelete: Cascade)
+
+  leaveTypeId String
+  leaveType   LeaveType @relation(fields: [leaveTypeId], references: [id])
+
+  approvedBy  String?
+  approver    User?     @relation("EncashmentApprover", fields: [approvedBy], references: [id])
+  approvedAt  DateTime?
+
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+
+  @@index([userId])
+  @@index([status])
+}
+
+// ─── Feature 13: Documents ───────────────────────────────────────────────────
+model Document {
+  id       String  @id @default(cuid())
+  name     String
+  type     String  // offer_letter, id_proof, contract, certificate, other
+  url      String
+  size     Int?
+  mimeType String?
+
+  userId     String
+  user       User   @relation("UserDocuments", fields: [userId], references: [id], onDelete: Cascade)
+
+  uploadedBy String
+  uploader   User   @relation("DocumentUploader", fields: [uploadedBy], references: [id])
+
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+
+  @@index([userId])
+  @@index([type])
+}
+
+// ─── Feature 14: Audit Logs ──────────────────────────────────────────────────
+model AuditLog {
+  id         String  @id @default(cuid())
+  action     String  // create, update, delete, approve, reject, login
+  module     String  // user, attendance, leave, task, payroll, shift, permission
+  entityId   String?
+  entityType String?
+  oldValues  Json?
+  newValues  Json?
+  ipAddress  String?
+  userAgent  String?
+
+  userId String
+  user   User   @relation(fields: [userId], references: [id], onDelete: Cascade)
+
+  createdAt DateTime @default(now())
+
+  @@index([userId])
+  @@index([module])
+  @@index([action])
+  @@index([createdAt])
 }

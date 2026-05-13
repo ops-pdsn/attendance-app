@@ -18,6 +18,8 @@ export default function PayrollPage() {
   const [employees, setEmployees] = useState([])
   const [selectedEmployee, setSelectedEmployee] = useState(null)
   const [showSalaryModal, setShowSalaryModal] = useState(false)
+  const [showSlipModal, setShowSlipModal] = useState(false)
+  const [slipEmployee, setSlipEmployee] = useState(null)
   const [exporting, setExporting] = useState(false)
   const [selectedMonth, setSelectedMonth] = useState(() => {
     const now = new Date()
@@ -91,6 +93,11 @@ export default function PayrollPage() {
     const lopDeduction = salary.lopDays > 0 
       ? Math.round((salary.basicSalary / salary.workingDays) * salary.lopDays) : 0
     return gross - deductions - lopDeduction
+  }
+
+  const openSlipModal = (employee) => {
+    setSlipEmployee(employee)
+    setShowSlipModal(true)
   }
 
   const openSalaryModal = (employee) => {
@@ -318,12 +325,20 @@ export default function PayrollPage() {
                     <td className="px-4 py-3 text-sm text-right text-red-600">{formatCurrency(calculateTotalDeductions(emp.salary))}</td>
                     <td className="px-4 py-3 text-sm text-right text-emerald-600 font-semibold">{formatCurrency(calculateNetSalary(emp.salary))}</td>
                     <td className="px-4 py-3 text-center">
-                      <button
-                        onClick={() => openSalaryModal(emp)}
-                        className="px-3 py-1.5 bg-blue-50 dark:bg-blue-900/30 text-blue-600 dark:text-blue-400 rounded-lg text-xs font-medium hover:bg-blue-100 dark:hover:bg-blue-900/50"
-                      >
-                        Edit Salary
-                      </button>
+                      <div className="flex items-center justify-center gap-2">
+                        <button
+                          onClick={() => openSlipModal(emp)}
+                          className="px-3 py-1.5 bg-emerald-50 dark:bg-emerald-900/30 text-emerald-600 dark:text-emerald-400 rounded-lg text-xs font-medium hover:bg-emerald-100"
+                        >
+                          View Slip
+                        </button>
+                        <button
+                          onClick={() => openSalaryModal(emp)}
+                          className="px-3 py-1.5 bg-blue-50 dark:bg-blue-900/30 text-blue-600 dark:text-blue-400 rounded-lg text-xs font-medium hover:bg-blue-100 dark:hover:bg-blue-900/50"
+                        >
+                          Edit Salary
+                        </button>
+                      </div>
                     </td>
                   </tr>
                 ))}
@@ -379,6 +394,120 @@ export default function PayrollPage() {
           )}
         </div>
       </div>
+
+      {/* Salary Slip Modal */}
+      {showSlipModal && slipEmployee && (
+        <div className="fixed inset-0 bg-black/50 flex items-center justify-center z-50 p-4">
+          <div className="bg-white dark:bg-slate-800 rounded-2xl w-full max-w-2xl max-h-[95vh] overflow-hidden flex flex-col">
+            <div className="px-6 py-4 border-b border-slate-200 dark:border-slate-700 flex items-center justify-between flex-shrink-0">
+              <h2 className="text-lg font-semibold text-slate-900 dark:text-white">Salary Slip</h2>
+              <div className="flex gap-2">
+                <button onClick={() => window.print()} className="px-3 py-1.5 bg-blue-500 text-white rounded-lg text-sm font-medium hover:bg-blue-600">🖨️ Print</button>
+                <button onClick={() => setShowSlipModal(false)} className="p-2 hover:bg-slate-100 dark:hover:bg-slate-700 rounded-lg"><svg className="w-5 h-5 text-slate-500" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M6 18L18 6M6 6l12 12" /></svg></button>
+              </div>
+            </div>
+
+            <div id="salary-slip-print" className="p-6 overflow-y-auto flex-1 text-slate-900 dark:text-white">
+              {/* Company Header */}
+              <div className="text-center mb-6 pb-4 border-b-2 border-slate-200 dark:border-slate-600">
+                <h1 className="text-xl font-bold text-slate-900 dark:text-white">SALARY SLIP</h1>
+                <p className="text-sm text-slate-500 mt-1">{selectedMonth}</p>
+              </div>
+
+              {/* Employee Details */}
+              <div className="grid grid-cols-2 gap-4 mb-6 p-4 bg-slate-50 dark:bg-slate-700/50 rounded-xl">
+                <div className="space-y-1.5">
+                  <div className="flex gap-2 text-sm"><span className="text-slate-500 w-28 flex-shrink-0">Employee Name:</span><span className="font-medium">{slipEmployee.name}</span></div>
+                  <div className="flex gap-2 text-sm"><span className="text-slate-500 w-28 flex-shrink-0">Employee ID:</span><span className="font-medium">{slipEmployee.employeeId || '—'}</span></div>
+                  <div className="flex gap-2 text-sm"><span className="text-slate-500 w-28 flex-shrink-0">Department:</span><span className="font-medium">{slipEmployee.department || '—'}</span></div>
+                </div>
+                <div className="space-y-1.5">
+                  <div className="flex gap-2 text-sm"><span className="text-slate-500 w-28 flex-shrink-0">Designation:</span><span className="font-medium capitalize">{slipEmployee.role}</span></div>
+                  <div className="flex gap-2 text-sm"><span className="text-slate-500 w-28 flex-shrink-0">Working Days:</span><span className="font-medium">{slipEmployee.salary?.workingDays ?? 26}</span></div>
+                  <div className="flex gap-2 text-sm"><span className="text-slate-500 w-28 flex-shrink-0">Present Days:</span><span className="font-medium">{slipEmployee.salary?.presentDays ?? '—'}</span></div>
+                </div>
+              </div>
+
+              {/* Earnings & Deductions side by side */}
+              <div className="grid grid-cols-2 gap-4 mb-4">
+                {/* Earnings */}
+                <div>
+                  <h3 className="text-sm font-bold text-emerald-600 bg-emerald-50 dark:bg-emerald-900/20 px-3 py-2 rounded-t-lg">EARNINGS</h3>
+                  <table className="w-full text-sm border border-slate-200 dark:border-slate-600 rounded-b-lg overflow-hidden">
+                    <tbody className="divide-y divide-slate-100 dark:divide-slate-700">
+                      {[
+                        ['Basic Salary', slipEmployee.salary?.basicSalary],
+                        ['HRA', slipEmployee.salary?.hra],
+                        ['DA', slipEmployee.salary?.da],
+                        ['Conveyance', slipEmployee.salary?.conveyance],
+                        ['Medical Allowance', slipEmployee.salary?.medicalAllowance],
+                        ['Special Allowance', slipEmployee.salary?.specialAllowance],
+                        ['Bonus', slipEmployee.salary?.bonus],
+                        ['Overtime', slipEmployee.salary?.overtime],
+                        ['Other Earnings', slipEmployee.salary?.otherEarnings],
+                      ].filter(([, v]) => v).map(([label, val]) => (
+                        <tr key={label} className="hover:bg-slate-50 dark:hover:bg-slate-700/30">
+                          <td className="px-3 py-1.5 text-slate-600 dark:text-slate-400">{label}</td>
+                          <td className="px-3 py-1.5 text-right font-medium">{formatCurrency(val)}</td>
+                        </tr>
+                      ))}
+                    </tbody>
+                    <tfoot>
+                      <tr className="bg-emerald-50 dark:bg-emerald-900/20 font-semibold">
+                        <td className="px-3 py-2 text-emerald-700 dark:text-emerald-400">Gross Earnings</td>
+                        <td className="px-3 py-2 text-right text-emerald-700 dark:text-emerald-400">{formatCurrency(calculateTotalEarnings(slipEmployee.salary))}</td>
+                      </tr>
+                    </tfoot>
+                  </table>
+                </div>
+
+                {/* Deductions */}
+                <div>
+                  <h3 className="text-sm font-bold text-red-600 bg-red-50 dark:bg-red-900/20 px-3 py-2 rounded-t-lg">DEDUCTIONS</h3>
+                  <table className="w-full text-sm border border-slate-200 dark:border-slate-600 rounded-b-lg overflow-hidden">
+                    <tbody className="divide-y divide-slate-100 dark:divide-slate-700">
+                      {[
+                        ['Provident Fund', slipEmployee.salary?.pf],
+                        ['ESI', slipEmployee.salary?.esi],
+                        ['Professional Tax', slipEmployee.salary?.professionalTax],
+                        ['TDS', slipEmployee.salary?.tds],
+                        ['Loan Deduction', slipEmployee.salary?.loanDeduction],
+                        ['Other Deductions', slipEmployee.salary?.otherDeductions],
+                        ...(slipEmployee.salary?.lopDays > 0 ? [['LOP (' + slipEmployee.salary?.lopDays + ' days)', Math.round((slipEmployee.salary?.basicSalary / (slipEmployee.salary?.workingDays || 26)) * slipEmployee.salary?.lopDays)]] : []),
+                      ].filter(([, v]) => v).map(([label, val]) => (
+                        <tr key={label} className="hover:bg-slate-50 dark:hover:bg-slate-700/30">
+                          <td className="px-3 py-1.5 text-slate-600 dark:text-slate-400">{label}</td>
+                          <td className="px-3 py-1.5 text-right font-medium text-red-600">{formatCurrency(val)}</td>
+                        </tr>
+                      ))}
+                    </tbody>
+                    <tfoot>
+                      <tr className="bg-red-50 dark:bg-red-900/20 font-semibold">
+                        <td className="px-3 py-2 text-red-700 dark:text-red-400">Total Deductions</td>
+                        <td className="px-3 py-2 text-right text-red-700 dark:text-red-400">{formatCurrency(calculateTotalDeductions(slipEmployee.salary))}</td>
+                      </tr>
+                    </tfoot>
+                  </table>
+                </div>
+              </div>
+
+              {/* Net Salary Banner */}
+              <div className="bg-gradient-to-r from-emerald-500 to-teal-600 rounded-xl p-4 text-white flex items-center justify-between">
+                <div>
+                  <p className="text-sm opacity-80">Net Salary Payable</p>
+                  <p className="text-3xl font-bold">{formatCurrency(calculateNetSalary(slipEmployee.salary))}</p>
+                </div>
+                <div className="text-right text-sm opacity-80">
+                  <p>For the month of</p>
+                  <p className="font-semibold text-base">{selectedMonth}</p>
+                </div>
+              </div>
+
+              <p className="text-xs text-slate-400 text-center mt-4">This is a computer generated salary slip and does not require a signature.</p>
+            </div>
+          </div>
+        </div>
+      )}
 
       {/* Salary Edit Modal */}
       {showSalaryModal && selectedEmployee && (

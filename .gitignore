@@ -34,3 +34,17 @@ yarn-error.log*
 # typescript
 *.tsbuildinfo
 next-env.d.ts
+
+# claude memory
+.claude/
+
+# unrelated project files
+LED Calculator/
+LED Calculator.rar
+PDSN Website/
+PDSN Website.rar
+
+# temp / backup
+text.txt
+prisma/schema Copy1.prisma
+prisma/schema.prisma.prisma

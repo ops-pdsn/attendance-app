@@ -2,7 +2,6 @@ import { NextResponse } from 'next/server'
 import { getServerSession } from 'next-auth'
 import { authOptions } from '@/lib/authOptions'
 import prisma from '@/lib/db'
-import { sendLeaveApprovedEmail, sendLeaveRejectedEmail } from '@/lib/email'
 
 // GET /api/leave-requests/[id] - Get single leave request
 export async function GET(request, { params }) {
@@ -12,7 +11,7 @@ export async function GET(request, { params }) {
       return NextResponse.json({ error: 'Unauthorized' }, { status: 401 })
     }
 
-    const { id } = params
+    const { id } = await params
 
     const leaveRequest = await prisma.leaveRequest.findUnique({
       where: { id },
@@ -59,7 +58,7 @@ export async function PATCH(request, { params }) {
       return NextResponse.json({ error: 'Unauthorized' }, { status: 401 })
     }
 
-    const { id } = params
+    const { id } = await params
     const body = await request.json()
     const { action, rejectionReason } = body
 
@@ -67,7 +66,7 @@ export async function PATCH(request, { params }) {
       where: { id },
       include: {
         user: {
-          select: { id: true, name: true, managerId: true }
+          select: { id: true, name: true, email: true, managerId: true }
         },
         leaveType: true
       }
@@ -81,11 +80,14 @@ export async function PATCH(request, { params }) {
     const isManager = leaveRequest.user.managerId === session.user.id
     const isAdmin = session.user.role === 'admin' || session.user.role === 'hr'
 
+    // ✅ Link to the specific request detail page
+    const requestLink = `/leave/requests/${id}`
+
     // Handle different actions
     switch (action) {
       case 'approve':
         if (!isManager && !isAdmin) {
-          return NextResponse.json({ error: 'Only managers can approve leave requests' }, { status: 403 })
+          return NextResponse.json({ error: 'Only managers/HR/admins can approve leave requests' }, { status: 403 })
         }
 
         if (leaveRequest.status !== 'pending') {
@@ -104,28 +106,32 @@ export async function PATCH(request, { params }) {
 
         // Update leave balance (move from pending to used)
         const year = leaveRequest.startDate.getFullYear()
-        await prisma.leaveBalance.update({
-          where: {
-            userId_leaveTypeId_year: {
-              userId: leaveRequest.userId,
-              leaveTypeId: leaveRequest.leaveTypeId,
-              year
+        try {
+          await prisma.leaveBalance.update({
+            where: {
+              userId_leaveTypeId_year: {
+                userId: leaveRequest.userId,
+                leaveTypeId: leaveRequest.leaveTypeId,
+                year
+              }
+            },
+            data: {
+              pending: { decrement: leaveRequest.days },
+              used: { increment: leaveRequest.days }
             }
-          },
-          data: {
-            pending: { decrement: leaveRequest.days },
-            used: { increment: leaveRequest.days }
-          }
-        })
+          })
+        } catch (balanceError) {
+          console.log('Leave balance update skipped:', balanceError.message)
+        }
 
-        // Notify employee
+        // Notify employee - link to their specific request
         await prisma.notification.create({
           data: {
             userId: leaveRequest.userId,
-            title: 'Leave Approved ✅',
+            title: '✅ Leave Approved',
             message: `Your ${leaveRequest.leaveType.name} request for ${leaveRequest.days} day(s) has been approved by ${session.user.name}`,
             type: 'success',
-            link: '/leave'
+            link: requestLink
           }
         })
 
@@ -133,7 +139,7 @@ export async function PATCH(request, { params }) {
 
       case 'reject':
         if (!isManager && !isAdmin) {
-          return NextResponse.json({ error: 'Only managers can reject leave requests' }, { status: 403 })
+          return NextResponse.json({ error: 'Only managers/HR/admins can reject leave requests' }, { status: 403 })
         }
 
         if (leaveRequest.status !== 'pending') {
@@ -153,27 +159,31 @@ export async function PATCH(request, { params }) {
 
         // Restore pending balance
         const rejectYear = leaveRequest.startDate.getFullYear()
-        await prisma.leaveBalance.update({
-          where: {
-            userId_leaveTypeId_year: {
-              userId: leaveRequest.userId,
-              leaveTypeId: leaveRequest.leaveTypeId,
-              year: rejectYear
+        try {
+          await prisma.leaveBalance.update({
+            where: {
+              userId_leaveTypeId_year: {
+                userId: leaveRequest.userId,
+                leaveTypeId: leaveRequest.leaveTypeId,
+                year: rejectYear
+              }
+            },
+            data: {
+              pending: { decrement: leaveRequest.days }
             }
-          },
-          data: {
-            pending: { decrement: leaveRequest.days }
-          }
-        })
+          })
+        } catch (balanceError) {
+          console.log('Leave balance update skipped:', balanceError.message)
+        }
 
-        // Notify employee
+        // Notify employee - link to their specific request
         await prisma.notification.create({
           data: {
             userId: leaveRequest.userId,
-            title: 'Leave Rejected ❌',
+            title: '❌ Leave Rejected',
             message: `Your ${leaveRequest.leaveType.name} request has been rejected${rejectionReason ? `: ${rejectionReason}` : ''}`,
             type: 'error',
-            link: '/leave'
+            link: requestLink
           }
         })
 
@@ -196,18 +206,22 @@ export async function PATCH(request, { params }) {
 
         // Restore pending balance
         const cancelYear = leaveRequest.startDate.getFullYear()
-        await prisma.leaveBalance.update({
-          where: {
-            userId_leaveTypeId_year: {
-              userId: leaveRequest.userId,
-              leaveTypeId: leaveRequest.leaveTypeId,
-              year: cancelYear
+        try {
+          await prisma.leaveBalance.update({
+            where: {
+              userId_leaveTypeId_year: {
+                userId: leaveRequest.userId,
+                leaveTypeId: leaveRequest.leaveTypeId,
+                year: cancelYear
+              }
+            },
+            data: {
+              pending: { decrement: leaveRequest.days }
             }
-          },
-          data: {
-            pending: { decrement: leaveRequest.days }
-          }
-        })
+          })
+        } catch (balanceError) {
+          console.log('Leave balance update skipped:', balanceError.message)
+        }
 
         return NextResponse.json({ success: true, message: 'Leave request cancelled' })
 
@@ -228,7 +242,7 @@ export async function DELETE(request, { params }) {
       return NextResponse.json({ error: 'Unauthorized' }, { status: 401 })
     }
 
-    const { id } = params
+    const { id } = await params
 
     const leaveRequest = await prisma.leaveRequest.findUnique({
       where: { id }
@@ -251,18 +265,22 @@ export async function DELETE(request, { params }) {
     // Restore pending balance if needed
     if (leaveRequest.status === 'pending') {
       const year = leaveRequest.startDate.getFullYear()
-      await prisma.leaveBalance.update({
-        where: {
-          userId_leaveTypeId_year: {
-            userId: leaveRequest.userId,
-            leaveTypeId: leaveRequest.leaveTypeId,
-            year
+      try {
+        await prisma.leaveBalance.update({
+          where: {
+            userId_leaveTypeId_year: {
+              userId: leaveRequest.userId,
+              leaveTypeId: leaveRequest.leaveTypeId,
+              year
+            }
+          },
+          data: {
+            pending: { decrement: leaveRequest.days }
           }
-        },
-        data: {
-          pending: { decrement: leaveRequest.days }
-        }
-      })
+        })
+      } catch (balanceError) {
+        console.log('Leave balance update skipped:', balanceError.message)
+      }
     }
 
     await prisma.leaveRequest.delete({ where: { id } })
@@ -273,4 +291,3 @@ export async function DELETE(request, { params }) {
     return NextResponse.json({ error: error.message }, { status: 500 })
   }
 }
-

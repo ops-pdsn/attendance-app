@@ -11,7 +11,7 @@ export default withAuth(
         // Allow public paths without authentication
         const publicPaths = [
           '/login',
-          '/register', 
+          '/signup', 
           '/forgot-password',
           '/reset-password',
           '/api/auth',

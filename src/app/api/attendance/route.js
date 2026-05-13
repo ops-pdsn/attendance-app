@@ -73,16 +73,21 @@ export async function POST(request) {
     }
 
     const body = await request.json()
-    const { 
-      date, 
-      status, 
-      session: attendanceSession, 
+    const {
+      date,
+      status,
+      session: attendanceSession,
       notes,
       latitude,
       longitude,
       location,
-      accuracy
+      accuracy,
+      targetUserId // admin can specify userId
     } = body
+
+    // Admin can create for any user
+    const isAdmin = ['admin', 'hr'].includes(session.user.role)
+    const effectiveUserId = (isAdmin && targetUserId) ? targetUserId : session.user.id
 
     const attendanceDate = new Date(date)
     attendanceDate.setHours(0, 0, 0, 0)
@@ -90,7 +95,7 @@ export async function POST(request) {
     // Check if already marked for this date
     const existing = await prisma.attendance.findFirst({
       where: {
-        userId: session.user.id,
+        userId: effectiveUserId,
         date: attendanceDate
       }
     })
@@ -116,10 +121,10 @@ export async function POST(request) {
     // Create new attendance record
     const attendance = await prisma.attendance.create({
       data: {
-        userId: session.user.id,
+        userId: effectiveUserId,
         date: attendanceDate,
         status,
-        session: attendanceSession || 'full',
+        session: attendanceSession || 'full_day',
         notes,
         latitude: latitude ? parseFloat(latitude) : null,
         longitude: longitude ? parseFloat(longitude) : null,
@@ -131,6 +136,75 @@ export async function POST(request) {
     return NextResponse.json(attendance, { status: 201 })
   } catch (error) {
     console.error('POST /api/attendance error:', error)
+    return NextResponse.json({ error: error.message }, { status: 500 })
+  }
+}
+
+// PATCH /api/attendance - Admin: update any record (status, session, punchIn, punchOut, notes, userId)
+export async function PATCH(request) {
+  try {
+    const session = await getServerSession(authOptions)
+    if (!session) return NextResponse.json({ error: 'Unauthorized' }, { status: 401 })
+    if (!['admin', 'hr'].includes(session.user.role))
+      return NextResponse.json({ error: 'Forbidden — admin/HR only' }, { status: 403 })
+
+    const { id, status, attendanceSession, punchIn, punchOut, notes, userId, date } = await request.json()
+
+    // Admin creating a new record for another user
+    if (!id && userId && date) {
+      const attendanceDate = new Date(date)
+      attendanceDate.setHours(0, 0, 0, 0)
+      const record = await prisma.attendance.upsert({
+        where: { date_session_userId: { date: attendanceDate, session: attendanceSession || 'full_day', userId } },
+        update: { status, notes, punchIn: punchIn ? new Date(punchIn) : undefined, punchOut: punchOut ? new Date(punchOut) : undefined },
+        create: { userId, date: attendanceDate, status: status || 'present', session: attendanceSession || 'full_day', notes, punchIn: punchIn ? new Date(punchIn) : null, punchOut: punchOut ? new Date(punchOut) : null }
+      })
+      return NextResponse.json(record)
+    }
+
+    if (!id) return NextResponse.json({ error: 'ID is required' }, { status: 400 })
+
+    const existing = await prisma.attendance.findUnique({ where: { id } })
+    if (!existing) return NextResponse.json({ error: 'Not found' }, { status: 404 })
+
+    const updated = await prisma.attendance.update({
+      where: { id },
+      data: {
+        ...(status && { status }),
+        ...(attendanceSession && { session: attendanceSession }),
+        ...(punchIn !== undefined && { punchIn: punchIn ? new Date(punchIn) : null }),
+        ...(punchOut !== undefined && { punchOut: punchOut ? new Date(punchOut) : null }),
+        ...(notes !== undefined && { notes })
+      }
+    })
+    return NextResponse.json(updated)
+  } catch (error) {
+    console.error('PATCH /api/attendance error:', error)
+    return NextResponse.json({ error: error.message }, { status: 500 })
+  }
+}
+
+// DELETE /api/attendance - Admin: delete any record; user: delete own
+export async function DELETE(request) {
+  try {
+    const session = await getServerSession(authOptions)
+    if (!session) return NextResponse.json({ error: 'Unauthorized' }, { status: 401 })
+
+    const { searchParams } = new URL(request.url)
+    const id = searchParams.get('id')
+    if (!id) return NextResponse.json({ error: 'ID is required' }, { status: 400 })
+
+    const existing = await prisma.attendance.findUnique({ where: { id } })
+    if (!existing) return NextResponse.json({ error: 'Not found' }, { status: 404 })
+
+    const isAdmin = ['admin', 'hr'].includes(session.user.role)
+    const isOwner = existing.userId === session.user.id
+    if (!isAdmin && !isOwner) return NextResponse.json({ error: 'Forbidden' }, { status: 403 })
+
+    await prisma.attendance.delete({ where: { id } })
+    return NextResponse.json({ success: true })
+  } catch (error) {
+    console.error('DELETE /api/attendance error:', error)
     return NextResponse.json({ error: error.message }, { status: 500 })
   }
 }

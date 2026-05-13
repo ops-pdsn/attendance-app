@@ -19,6 +19,7 @@ import { useConfirm } from "@/components/ConfirmDialog";
 import NotificationBell from "@/components/NotificationBell";
 import ReportGenerator from "@/components/ReportGenerator";
 import AttendanceModal from "@/components/AttendanceModal";
+import BirthdayWidget from "@/components/BirthdayWidget";
 
 export default function Home() {
   const [tasks, setTasks] = useState([]);
@@ -1321,6 +1322,7 @@ export default function Home() {
         </div>
 
         <AutoCarryForward onCarryForward={handleCarryForward} />
+        <BirthdayWidget />
       </div>
 
       {/* Portal Dropdowns */}

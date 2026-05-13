@@ -6,11 +6,90 @@ import { createPortal } from "react-dom";
 import Link from "next/link";
 import { usePermissions } from "@/hooks/usePermissions";
 
+const MENU_GROUPS = [
+  {
+    id: "account",
+    label: "My Account",
+    headerColor: "text-blue-600 dark:text-blue-400",
+    items: [
+      { href: "/profile", label: "My Profile", desc: "View and edit profile", icon: "👤", bg: "bg-blue-100 dark:bg-blue-500/20", alwaysShow: true },
+      { href: "/notifications", label: "Notifications", desc: "View notifications", icon: "🔔", bg: "bg-yellow-100 dark:bg-yellow-500/20", module: "notifications" },
+      { href: "/announcements", label: "Announcements", desc: "Company notices", icon: "📢", bg: "bg-pink-100 dark:bg-pink-500/20", alwaysShow: true },
+    ],
+  },
+  {
+    id: "attendance",
+    label: "Attendance & Time",
+    headerColor: "text-orange-600 dark:text-orange-400",
+    items: [
+      { href: "/timesheet", label: "Time Sheet", desc: "Punch-IN / OUT", icon: "⏱️", bg: "bg-orange-100 dark:bg-orange-500/20", module: "timesheet" },
+      { href: "/regularization", label: "Regularization", desc: "Correct attendance records", icon: "📝", bg: "bg-teal-100 dark:bg-teal-500/20", module: "attendance" },
+      { href: "/overtime", label: "Overtime", desc: "Log overtime & comp-off", icon: "⏰", bg: "bg-violet-100 dark:bg-violet-500/20", module: "attendance" },
+    ],
+  },
+  {
+    id: "leave",
+    label: "Leave",
+    headerColor: "text-cyan-600 dark:text-cyan-400",
+    items: [
+      { href: "/leave", label: "Leave", desc: "Apply & track your leave", icon: "🏖️", bg: "bg-cyan-100 dark:bg-cyan-500/20", module: "leave" },
+    ],
+  },
+  {
+    id: "shifts",
+    label: "Shifts",
+    headerColor: "text-indigo-600 dark:text-indigo-400",
+    items: [
+      { href: "/shifts", label: "Shifts", desc: "View shift schedules", icon: "🕐", bg: "bg-indigo-100 dark:bg-indigo-500/20", module: "shifts" },
+      { href: "/shift-swap", label: "Shift Swap", desc: "Exchange shifts with colleagues", icon: "🔄", bg: "bg-indigo-100 dark:bg-indigo-500/20", module: "shifts" },
+    ],
+  },
+  {
+    id: "team",
+    label: "Team",
+    headerColor: "text-amber-600 dark:text-amber-400",
+    items: [
+      { href: "/team", label: "Team Dashboard", desc: "Manage your team", icon: "👥", bg: "bg-amber-100 dark:bg-amber-500/20", module: "team" },
+      { href: "/team-calendar", label: "Team Calendar", desc: "Attendance & leave calendar", icon: "📅", bg: "bg-sky-100 dark:bg-sky-500/20", module: "team" },
+    ],
+  },
+  {
+    id: "analytics",
+    label: "Analytics & Reports",
+    headerColor: "text-purple-600 dark:text-purple-400",
+    items: [
+      { href: "/analytics", label: "Analytics", desc: "Charts & statistics", icon: "📊", bg: "bg-purple-100 dark:bg-purple-500/20", module: "analytics" },
+      { href: "/reports", label: "Reports", desc: "Custom report builder", icon: "📑", bg: "bg-emerald-100 dark:bg-emerald-500/20", module: "analytics" },
+    ],
+  },
+  {
+    id: "finance",
+    label: "Finance",
+    headerColor: "text-emerald-600 dark:text-emerald-400",
+    items: [
+      { href: "/payroll", label: "Payroll", desc: "Salary details & payroll slip", icon: "💰", bg: "bg-emerald-100 dark:bg-emerald-500/20", module: "payroll" },
+    ],
+  },
+  {
+    id: "admin",
+    label: "Administration",
+    headerColor: "text-red-600 dark:text-red-400",
+    items: [
+      { href: "/admin", label: "Admin Dashboard", desc: "Manage users & settings", icon: "⚙️", bg: "bg-red-100 dark:bg-red-500/20", module: "admin" },
+      { href: "/admin/attendance", label: "Manage Attendance", desc: "Add / edit attendance records", icon: "📋", bg: "bg-red-100 dark:bg-red-500/20", module: "admin" },
+      { href: "/admin/leave", label: "Manage Leave", desc: "Approve, reject & create leaves", icon: "🏖️", bg: "bg-red-100 dark:bg-red-500/20", module: "admin" },
+      { href: "/documents", label: "Documents", desc: "Employee documents", icon: "📁", bg: "bg-slate-100 dark:bg-slate-700", module: "admin" },
+      { href: "/audit-logs", label: "Audit Logs", desc: "System activity trail", icon: "🔍", bg: "bg-slate-100 dark:bg-slate-700", module: "admin" },
+    ],
+  },
+];
+
 export default function UserNav() {
   const { data: session, status } = useSession();
   const { hasAccess, isAdmin, isHR, loading: permLoading } = usePermissions();
   const [showDropdown, setShowDropdown] = useState(false);
   const [dropdownPosition, setDropdownPosition] = useState({ top: 0, right: 0 });
+  const [expandedGroups, setExpandedGroups] = useState(() => new Set(MENU_GROUPS.map(g => g.id)));
   const buttonRef = useRef(null);
   const dropdownRef = useRef(null);
   const [mounted, setMounted] = useState(false);
@@ -73,25 +152,27 @@ export default function UserNav() {
     employee: "bg-blue-100 dark:bg-blue-500/20 text-blue-600 dark:text-blue-400 border-blue-200 dark:border-blue-500/30",
   };
 
-  // Menu items with module mapping
-  const menuItems = [
-    { href: "/profile", label: "My Profile", desc: "View and edit profile", icon: "👤", bg: "bg-blue-100 dark:bg-blue-500/20", alwaysShow: true },
-    { href: "/timesheet", label: "Time Sheet", desc: "Punch-IN/OUT", icon: "⏱️", bg: "bg-orange-100 dark:bg-orange-500/20", module: "timesheet" },
-    { href: "/leave", label: "Leave", desc: "Apply & manage leaves", icon: "🏖️", bg: "bg-cyan-100 dark:bg-cyan-500/20", module: "leave" },
-    { href: "/shifts", label: "Shifts", desc: "View shift schedules", icon: "🕐", bg: "bg-indigo-100 dark:bg-indigo-500/20", module: "shifts" },
-    { href: "/notifications", label: "Notifications", desc: "View notifications", icon: "🔔", bg: "bg-yellow-100 dark:bg-yellow-500/20", module: "notifications" },
-    { href: "/team", label: "Team Dashboard", desc: "Manage your team", icon: "👥", bg: "bg-amber-100 dark:bg-amber-500/20", module: "team" },
-    { href: "/analytics", label: "Analytics", desc: "Reports & analytics", icon: "📊", bg: "bg-purple-100 dark:bg-purple-500/20", module: "analytics" },
-    { href: "/payroll", label: "Payroll", desc: "View payroll details", icon: "💰", bg: "bg-emerald-100 dark:bg-emerald-500/20", module: "payroll" },
-    { href: "/admin", label: "Admin Dashboard", desc: "Manage users & settings", icon: "⚙️", bg: "bg-red-100 dark:bg-red-500/20", module: "admin" },
-  ];
-
-  // Filter visible items based on permissions
-  const visibleItems = menuItems.filter(item => {
+  const isItemVisible = (item) => {
     if (item.alwaysShow) return true;
     if (isAdmin || isHR) return true;
     return item.module && hasAccess(item.module);
-  });
+  };
+
+  const toggleGroup = (id) => {
+    setExpandedGroups(prev => {
+      const next = new Set(prev);
+      if (next.has(id)) next.delete(id);
+      else next.add(id);
+      return next;
+    });
+  };
+
+  const visibleGroups = MENU_GROUPS.map(group => ({
+    ...group,
+    visibleItems: group.items.filter(isItemVisible),
+  })).filter(g => g.visibleItems.length > 0);
+
+  const totalVisible = visibleGroups.reduce((sum, g) => sum + g.visibleItems.length, 0);
 
   const Dropdown = () => (
     <div ref={dropdownRef} className="fixed w-72 bg-white dark:bg-slate-800 rounded-2xl shadow-2xl border border-slate-200 dark:border-slate-700 overflow-hidden flex flex-col" style={{ top: dropdownPosition.top, right: dropdownPosition.right, zIndex: 99999, maxHeight: "calc(100vh - 100px)" }}>
@@ -111,28 +192,60 @@ export default function UserNav() {
         </div>
       </div>
 
-      {/* Menu */}
-      <div className="flex-1 overflow-y-auto p-2">
+      {/* Grouped Menu */}
+      <div className="flex-1 overflow-y-auto">
         {permLoading ? (
           <div className="flex items-center justify-center py-8">
             <div className="w-6 h-6 border-2 border-blue-500 border-t-transparent rounded-full animate-spin"></div>
           </div>
-        ) : (
-          visibleItems.map(item => (
-            <Link key={item.href} href={item.href} onClick={() => setShowDropdown(false)} className="flex items-center gap-3 px-3 py-2.5 text-sm text-slate-700 dark:text-slate-300 hover:bg-slate-100 dark:hover:bg-slate-700/50 rounded-xl transition-colors">
-              <div className={`w-8 h-8 ${item.bg} rounded-lg flex items-center justify-center text-lg`}>{item.icon}</div>
-              <div>
-                <p className="font-medium">{item.label}</p>
-                <p className="text-xs text-slate-500 dark:text-slate-400">{item.desc}</p>
-              </div>
-            </Link>
-          ))
-        )}
-        {visibleItems.length <= 1 && !permLoading && (
-          <div className="text-center py-4 px-3">
+        ) : totalVisible <= 1 ? (
+          <div className="text-center py-8 px-3">
             <p className="text-sm text-slate-500">No pages assigned.</p>
             <p className="text-xs text-slate-400 mt-1">Contact admin for access.</p>
           </div>
+        ) : (
+          visibleGroups.map((group, gi) => {
+            const isExpanded = expandedGroups.has(group.id);
+            return (
+              <div key={group.id} className={gi > 0 ? "border-t border-slate-100 dark:border-slate-700/50" : ""}>
+                {/* Group header */}
+                <button
+                  onClick={() => toggleGroup(group.id)}
+                  className="w-full flex items-center justify-between px-3 py-2 hover:bg-slate-50 dark:hover:bg-slate-700/30 transition-colors"
+                >
+                  <span className={`text-xs font-bold uppercase tracking-wider ${group.headerColor}`}>
+                    {group.label}
+                  </span>
+                  <svg
+                    className={`w-3.5 h-3.5 text-slate-400 transition-transform duration-200 ${isExpanded ? "rotate-180" : ""}`}
+                    fill="none" stroke="currentColor" viewBox="0 0 24 24"
+                  >
+                    <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2.5} d="M19 9l-7 7-7-7" />
+                  </svg>
+                </button>
+
+                {/* Group items */}
+                {isExpanded && (
+                  <div className="px-2 pb-1.5">
+                    {group.visibleItems.map(item => (
+                      <Link
+                        key={item.href}
+                        href={item.href}
+                        onClick={() => setShowDropdown(false)}
+                        className="flex items-center gap-3 px-3 py-2 text-sm text-slate-700 dark:text-slate-300 hover:bg-slate-100 dark:hover:bg-slate-700/50 rounded-xl transition-colors"
+                      >
+                        <div className={`w-8 h-8 ${item.bg} rounded-lg flex items-center justify-center text-base flex-shrink-0`}>{item.icon}</div>
+                        <div className="min-w-0">
+                          <p className="font-medium leading-tight">{item.label}</p>
+                          <p className="text-xs text-slate-500 dark:text-slate-400 truncate">{item.desc}</p>
+                        </div>
+                      </Link>
+                    ))}
+                  </div>
+                )}
+              </div>
+            );
+          })
         )}
       </div>
 

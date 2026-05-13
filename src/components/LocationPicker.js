@@ -127,58 +127,95 @@ export default function LocationPicker({ onLocationSelect, required = false }) {
     </div>
   )
 
+  const isPermissionDenied = error && error.toLowerCase().includes('denied')
+
   const renderLocationButton = () => (
-    <div>
-      <button
-        type="button"
-        onClick={handleGetLocation}
-        disabled={loading}
-        className={`w-full p-4 rounded-xl border-2 border-dashed transition-all ${
-          error
-            ? 'border-red-300 dark:border-red-700 bg-red-50 dark:bg-red-900/20'
-            : 'border-slate-300 dark:border-slate-600 hover:border-blue-400 dark:hover:border-blue-500 hover:bg-blue-50 dark:hover:bg-blue-900/20'
-        }`}
-      >
-        {loading ? (
-          <div className="flex items-center justify-center gap-3">
-            <div className="w-6 h-6 border-2 border-blue-500 border-t-transparent rounded-full animate-spin"></div>
-            <span className="text-sm font-medium text-blue-600 dark:text-blue-400">
-              Getting your location...
-            </span>
-          </div>
-        ) : (
-          <div className="flex items-center justify-center gap-3">
-            <div className={`w-10 h-10 rounded-xl flex items-center justify-center ${
-              error 
-                ? 'bg-red-100 dark:bg-red-800' 
-                : 'bg-blue-100 dark:bg-blue-800'
-            }`}>
-              <svg 
-                className={`w-5 h-5 ${error ? 'text-red-600 dark:text-red-400' : 'text-blue-600 dark:text-blue-400'}`} 
-                fill="none" 
-                stroke="currentColor" 
-                viewBox="0 0 24 24"
-              >
-                <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M17.657 16.657L13.414 20.9a1.998 1.998 0 01-2.827 0l-4.244-4.243a8 8 0 1111.314 0z" />
-                <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M15 11a3 3 0 11-6 0 3 3 0 016 0z" />
+    <div className="space-y-2">
+      {/* Permission denied — show info banner + skip option */}
+      {isPermissionDenied ? (
+        <div className="p-4 bg-amber-50 dark:bg-amber-900/20 border border-amber-200 dark:border-amber-700 rounded-xl">
+          <div className="flex items-start gap-3">
+            <div className="w-9 h-9 bg-amber-100 dark:bg-amber-800 rounded-xl flex items-center justify-center flex-shrink-0">
+              <svg className="w-5 h-5 text-amber-600 dark:text-amber-400" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M12 9v2m0 4h.01m-6.938 4h13.856c1.54 0 2.502-1.667 1.732-3L13.732 4c-.77-1.333-2.694-1.333-3.464 0L3.34 16c-.77 1.333.192 3 1.732 3z" />
               </svg>
             </div>
-            <div className="text-left">
-              <p className={`text-sm font-medium ${
-                error ? 'text-red-700 dark:text-red-400' : 'text-slate-700 dark:text-slate-300'
-              }`}>
-                {error ? 'Location Error - Tap to Retry' : 'Capture Location'}
+            <div className="flex-1">
+              <p className="text-sm font-semibold text-amber-800 dark:text-amber-300">
+                Location Access Denied
               </p>
-              <p className="text-xs text-slate-500 dark:text-slate-400">
-                {error || 'Click to get your current location'}
+              <p className="text-xs text-amber-600 dark:text-amber-400 mt-0.5">
+                You can still submit attendance without location. To enable, allow location in your browser settings and retry.
               </p>
             </div>
           </div>
-        )}
-      </button>
+          <div className="flex gap-2 mt-3">
+            <button
+              type="button"
+              onClick={handleGetLocation}
+              disabled={loading}
+              className="flex-1 px-3 py-2 text-xs font-medium bg-amber-100 dark:bg-amber-800 text-amber-700 dark:text-amber-300 rounded-lg hover:bg-amber-200 dark:hover:bg-amber-700 transition-colors"
+            >
+              Retry
+            </button>
+            <button
+              type="button"
+              onClick={() => { clearLocation(); onLocationSelect?.(null) }}
+              className="flex-1 px-3 py-2 text-xs font-medium bg-slate-100 dark:bg-slate-700 text-slate-600 dark:text-slate-300 rounded-lg hover:bg-slate-200 dark:hover:bg-slate-600 transition-colors"
+            >
+              Skip Location
+            </button>
+          </div>
+        </div>
+      ) : (
+        /* Normal / other error state */
+        <button
+          type="button"
+          onClick={handleGetLocation}
+          disabled={loading}
+          className={`w-full p-4 rounded-xl border-2 border-dashed transition-all ${
+            error
+              ? 'border-red-300 dark:border-red-700 bg-red-50 dark:bg-red-900/20'
+              : 'border-slate-300 dark:border-slate-600 hover:border-blue-400 dark:hover:border-blue-500 hover:bg-blue-50 dark:hover:bg-blue-900/20'
+          }`}
+        >
+          {loading ? (
+            <div className="flex items-center justify-center gap-3">
+              <div className="w-6 h-6 border-2 border-blue-500 border-t-transparent rounded-full animate-spin"></div>
+              <span className="text-sm font-medium text-blue-600 dark:text-blue-400">
+                Getting your location...
+              </span>
+            </div>
+          ) : (
+            <div className="flex items-center justify-center gap-3">
+              <div className={`w-10 h-10 rounded-xl flex items-center justify-center ${
+                error ? 'bg-red-100 dark:bg-red-800' : 'bg-blue-100 dark:bg-blue-800'
+              }`}>
+                <svg
+                  className={`w-5 h-5 ${error ? 'text-red-600 dark:text-red-400' : 'text-blue-600 dark:text-blue-400'}`}
+                  fill="none" stroke="currentColor" viewBox="0 0 24 24"
+                >
+                  <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M17.657 16.657L13.414 20.9a1.998 1.998 0 01-2.827 0l-4.244-4.243a8 8 0 1111.314 0z" />
+                  <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M15 11a3 3 0 11-6 0 3 3 0 016 0z" />
+                </svg>
+              </div>
+              <div className="text-left">
+                <p className={`text-sm font-medium ${
+                  error ? 'text-red-700 dark:text-red-400' : 'text-slate-700 dark:text-slate-300'
+                }`}>
+                  {error ? 'Location Error — Tap to Retry' : 'Capture Location'}
+                </p>
+                <p className="text-xs text-slate-500 dark:text-slate-400">
+                  {error || 'Optional — click to get your current location'}
+                </p>
+              </div>
+            </div>
+          )}
+        </button>
+      )}
 
-      {required && !location && (
-        <p className="text-xs text-amber-600 dark:text-amber-400 mt-2 flex items-center gap-1">
+      {required && !location && !isPermissionDenied && (
+        <p className="text-xs text-amber-600 dark:text-amber-400 flex items-center gap-1">
           <svg className="w-3 h-3" fill="none" stroke="currentColor" viewBox="0 0 24 24">
             <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M12 9v2m0 4h.01m-6.938 4h13.856c1.54 0 2.502-1.667 1.732-3L13.732 4c-.77-1.333-2.694-1.333-3.464 0L3.34 16c-.77 1.333.192 3 1.732 3z" />
           </svg>
