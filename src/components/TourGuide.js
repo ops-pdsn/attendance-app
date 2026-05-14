@@ -87,8 +87,8 @@ export default function TourGuide() {
 
   return (
     <>
-      {/* Dim overlay */}
-      <div className="fixed inset-0 bg-black/40 z-[99990]" onClick={dismiss} />
+      {/* Dim overlay with blur */}
+      <div className="fixed inset-0 bg-black/50 backdrop-blur-sm z-[99990]" onClick={dismiss} />
 
       {/* Tour card — bottom-center on mobile, center on desktop */}
       <div className="fixed left-4 right-4 bottom-6 sm:left-1/2 sm:right-auto sm:bottom-auto sm:top-1/2 sm:-translate-x-1/2 sm:-translate-y-1/2 sm:w-[400px] z-[99991]">
