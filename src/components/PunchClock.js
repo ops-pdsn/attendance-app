@@ -17,7 +17,8 @@ export default function PunchClock() {
 
   const fetchTodayRecord = async () => {
     try {
-      const today = new Date().toISOString().split('T')[0]
+      const d = new Date()
+      const today = `${d.getFullYear()}-${String(d.getMonth()+1).padStart(2,'0')}-${String(d.getDate()).padStart(2,'0')}`
       const res = await fetch('/api/attendance?start=' + today + '&end=' + today)
       if (res.ok) {
         const data = await res.json()
@@ -37,7 +38,7 @@ export default function PunchClock() {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({
-          date: new Date().toISOString(),
+          date: (() => { const d = new Date(); return `${d.getFullYear()}-${String(d.getMonth()+1).padStart(2,'0')}-${String(d.getDate()).padStart(2,'0')}` })(),
           status: 'office',
           punchIn: new Date().toISOString()
         })

@@ -42,8 +42,8 @@ export default function DayDetails({ date, tasks, attendance, holidays, onAddTas
   })
   
   // Check if this date is a holiday
-  const isHoliday = holidays?.find(h => 
-    h.date.split('T')[0] === date.toISOString().split('T')[0]
+  const isHoliday = holidays?.find(h =>
+    h.date.split('T')[0] === localDateStr
   )
   
   // Get attendance entries for this date — use local date string to avoid timezone shift
@@ -58,7 +58,7 @@ export default function DayDetails({ date, tasks, attendance, holidays, onAddTas
     
     await onAddTask({
       title: taskTitle,
-      date: date.toISOString(),
+      date: localDateStr,
       type: taskCategoryId ? (selectedCategory?.name || 'daily') : 'daily',
       priority: taskPriority,
       notes: taskNotes,

@@ -276,9 +276,8 @@ export default function Home() {
 
   // Get tasks for selected date
   const getSelectedDateTasks = () => {
-    if (!selectedDate) return [];
-    const dateStr = selectedDate.toISOString().split("T")[0];
-    return tasks.filter((t) => t.date.split("T")[0] === dateStr);
+    if (!selectedDate || !selectedLocalDate) return [];
+    return tasks.filter((t) => t.date.split("T")[0] === selectedLocalDate);
   };
 
   // Get attendance for selected date — local date string avoids timezone day-shift
