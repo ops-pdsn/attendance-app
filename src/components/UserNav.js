@@ -80,6 +80,7 @@ const MENU_GROUPS = [
       { href: "/admin/leave", label: "Manage Leave", desc: "Approve, reject & create leaves", icon: "🏖️", bg: "bg-red-100 dark:bg-red-500/20", module: "admin" },
       { href: "/documents", label: "Documents", desc: "Employee documents", icon: "📁", bg: "bg-slate-100 dark:bg-slate-700", module: "admin" },
       { href: "/audit-logs", label: "Audit Logs", desc: "System activity trail", icon: "🔍", bg: "bg-slate-100 dark:bg-slate-700", module: "admin" },
+      { href: "/essl", label: "ESSL Integration", desc: "Biometric machine sync", icon: "🔌", bg: "bg-red-100 dark:bg-red-500/20", module: "admin" },
     ],
   },
 ];

@@ -447,6 +447,48 @@ model CompOffBalance {
   @@index([userId])
 }
 
+// ─── ESSL Biometric Integration ──────────────────────────────────────────────
+model EsslMachine {
+  id             String    @id @default(cuid())
+  serialNo       String    @unique
+  name           String?
+  location       String?
+  ipAddress      String?
+  port           Int       @default(4370)
+  devicePassword String?   @default("0")
+  isActive       Boolean   @default(true)
+  lastSyncAt     DateTime?
+  totalPunches   Int       @default(0)
+  createdAt      DateTime  @default(now())
+  updatedAt      DateTime  @updatedAt
+
+  logs           EsslLog[]
+
+  @@index([serialNo])
+}
+
+model EsslLog {
+  id           String       @id @default(cuid())
+  machineId    String?
+  machine      EsslMachine? @relation(fields: [machineId], references: [id])
+  employeeId   String
+  punchTime    DateTime
+  punchType    Int          @default(0)    // 0=IN 1=OUT 2=break-out 3=break-in
+  verifyMode   Int?                        // 1=Fingerprint 2=Face 3=Card 0=Password
+  source       String       @default("adms")  // adms | csv | zkteco
+  rawData      String?
+  processed    Boolean      @default(false)
+  processedAt  DateTime?
+  userId       String?
+  attendanceId String?
+  createdAt    DateTime     @default(now())
+
+  @@index([employeeId])
+  @@index([punchTime])
+  @@index([processed])
+  @@index([machineId])
+}
+
 // ─── Feature 7: Announcements ────────────────────────────────────────────────
 model Announcement {
   id         String    @id @default(cuid())
