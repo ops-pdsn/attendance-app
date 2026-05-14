@@ -67,7 +67,16 @@ const MENU_GROUPS = [
     label: "Finance",
     headerColor: "text-emerald-600 dark:text-emerald-400",
     items: [
-      { href: "/payroll", label: "Payroll", desc: "Salary details & payroll slip", icon: "💰", bg: "bg-emerald-100 dark:bg-emerald-500/20", module: "payroll" },
+      { href: "/payroll",  label: "Payroll",         desc: "Salary details & payroll slip",  icon: "💰", bg: "bg-emerald-100 dark:bg-emerald-500/20", module: "payroll" },
+      { href: "/expenses", label: "Expense Claims",   desc: "Submit & track reimbursements",  icon: "🧾", bg: "bg-emerald-100 dark:bg-emerald-500/20", alwaysShow: true },
+    ],
+  },
+  {
+    id: "performance",
+    label: "Performance",
+    headerColor: "text-violet-600 dark:text-violet-400",
+    items: [
+      { href: "/appraisals", label: "Appraisals", desc: "Goals, self-review & evaluation", icon: "⭐", bg: "bg-violet-100 dark:bg-violet-500/20", alwaysShow: true },
     ],
   },
   {
@@ -80,7 +89,8 @@ const MENU_GROUPS = [
       { href: "/admin/leave", label: "Manage Leave", desc: "Approve, reject & create leaves", icon: "🏖️", bg: "bg-red-100 dark:bg-red-500/20", module: "admin" },
       { href: "/documents", label: "Documents", desc: "Employee documents", icon: "📁", bg: "bg-slate-100 dark:bg-slate-700", module: "admin" },
       { href: "/audit-logs", label: "Audit Logs", desc: "System activity trail", icon: "🔍", bg: "bg-slate-100 dark:bg-slate-700", module: "admin" },
-      { href: "/essl", label: "ESSL Integration", desc: "Biometric machine sync", icon: "🔌", bg: "bg-red-100 dark:bg-red-500/20", module: "admin" },
+      { href: "/essl",   label: "ESSL Integration", desc: "Biometric machine sync",         icon: "🔌", bg: "bg-red-100 dark:bg-red-500/20", module: "admin" },
+      { href: "/assets", label: "Asset Management", desc: "Company assets & assignments",   icon: "💼", bg: "bg-red-100 dark:bg-red-500/20", module: "admin" },
     ],
   },
 ];

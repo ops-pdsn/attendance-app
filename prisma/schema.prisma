@@ -103,6 +103,17 @@ model User {
   // Feature 14: Audit Logs
   auditLogs AuditLog[]
 
+  // Feature 15: Expense Claims
+  expenseClaims    ExpenseClaim[] @relation("ExpenseClaims")
+  expenseApprovals ExpenseClaim[] @relation("ExpenseApprovals")
+
+  // Feature 16: Asset Management
+  assignedAssets Asset[] @relation("AssetAssignee")
+
+  // Feature 17: Performance Appraisal
+  appraisals       Appraisal[] @relation("AppraisalUser")
+  appraisalReviews Appraisal[] @relation("AppraisalReviewer")
+
   @@index([email])
   @@index([managerId])
 }
@@ -588,6 +599,92 @@ model Document {
 
   @@index([userId])
   @@index([type])
+}
+
+// ─── Feature 15: Expense Claims ──────────────────────────────────────────────
+model ExpenseClaim {
+  id              String    @id @default(cuid())
+  title           String
+  category        String    // travel, food, accommodation, office-supplies, fuel, other
+  amount          Float
+  currency        String    @default("INR")
+  date            DateTime
+  description     String?
+  receiptUrl      String?   @db.Text
+  status          String    @default("pending") // pending, approved, rejected, paid
+  rejectionReason String?
+
+  userId     String
+  user       User   @relation("ExpenseClaims", fields: [userId], references: [id], onDelete: Cascade)
+
+  approverId String?
+  approver   User?  @relation("ExpenseApprovals", fields: [approverId], references: [id])
+  approvedAt DateTime?
+  paidAt     DateTime?
+
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+
+  @@index([userId])
+  @@index([status])
+  @@index([date])
+}
+
+// ─── Feature 16: Asset Management ────────────────────────────────────────────
+model Asset {
+  id            String    @id @default(cuid())
+  name          String
+  assetCode     String    @unique
+  category      String    // laptop, phone, vehicle, furniture, equipment, other
+  brand         String?
+  model         String?
+  serialNo      String?
+  purchaseDate  DateTime?
+  purchasePrice Float?
+  condition     String    @default("good") // good, fair, poor
+  status        String    @default("available") // available, assigned, maintenance, retired
+  notes         String?
+
+  assignedTo String?
+  assignee   User?     @relation("AssetAssignee", fields: [assignedTo], references: [id])
+  assignedAt DateTime?
+
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+
+  @@index([assignedTo])
+  @@index([status])
+  @@index([category])
+}
+
+// ─── Feature 17: Performance Appraisal ───────────────────────────────────────
+model Appraisal {
+  id              String    @id @default(cuid())
+  period          String
+  periodStart     DateTime
+  periodEnd       DateTime
+  selfScore       Int?
+  managerScore    Int?
+  selfComments    String?   @db.Text
+  managerComments String?   @db.Text
+  goals           String?   @db.Text
+  status          String    @default("draft") // draft, submitted, reviewed, finalized
+
+  userId     String
+  user       User   @relation("AppraisalUser", fields: [userId], references: [id], onDelete: Cascade)
+
+  reviewerId String?
+  reviewer   User?  @relation("AppraisalReviewer", fields: [reviewerId], references: [id])
+
+  submittedAt DateTime?
+  reviewedAt  DateTime?
+  createdAt   DateTime  @default(now())
+  updatedAt   DateTime  @updatedAt
+
+  @@unique([userId, period])
+  @@index([userId])
+  @@index([status])
+  @@index([period])
 }
 
 // ─── Feature 14: Audit Logs ──────────────────────────────────────────────────
