@@ -22,6 +22,38 @@ function fmtTimeDisplay(dt) {
   return new Date(dt).toLocaleTimeString('en-IN', { hour: '2-digit', minute: '2-digit' })
 }
 
+function nowTimeStr() {
+  const n = new Date()
+  return `${String(n.getHours()).padStart(2, '0')}:${String(n.getMinutes()).padStart(2, '0')}`
+}
+
+function MapPreview({ lat, lng, height = 160 }) {
+  const d   = 0.004
+  const src = `https://www.openstreetmap.org/export/embed.html?bbox=${lng - d},${lat - d},${lng + d},${lat + d}&layer=mapnik&marker=${lat},${lng}`
+  return (
+    <div className="rounded-xl overflow-hidden border border-slate-200 dark:border-slate-600 shadow-sm">
+      <iframe
+        src={src}
+        title="Location map"
+        style={{ width: '100%', height, border: 0, display: 'block' }}
+        loading="lazy"
+      />
+      <div className="flex items-center gap-1.5 px-3 py-1.5 bg-slate-50 dark:bg-slate-700/60 text-xs text-slate-500 dark:text-slate-400">
+        <span>📍</span>
+        <span className="font-mono">{lat.toFixed(5)}, {lng.toFixed(5)}</span>
+        <a
+          href={`https://www.openstreetmap.org/?mlat=${lat}&mlon=${lng}&zoom=16`}
+          target="_blank"
+          rel="noopener noreferrer"
+          className="ml-auto text-blue-500 hover:underline font-medium"
+        >
+          Open Map ↗
+        </a>
+      </div>
+    </div>
+  )
+}
+
 const STATUS_CONFIG = {
   office:  { icon: '🏢', label: 'Office',    gradient: 'from-blue-500 to-blue-600',    ring: 'ring-blue-400',    light: 'bg-blue-50 border-blue-200 text-blue-700 dark:bg-blue-900/20 dark:border-blue-700 dark:text-blue-300' },
   field:   { icon: '🚗', label: 'Field Work', gradient: 'from-emerald-500 to-teal-500', ring: 'ring-emerald-400', light: 'bg-emerald-50 border-emerald-200 text-emerald-700 dark:bg-emerald-900/20 dark:border-emerald-700 dark:text-emerald-300' },
@@ -47,6 +79,15 @@ export default function AttendanceModal({ date, existingAttendance, allDayAttend
     punchIn:  fmtTime(existingAttendance?.punchIn),
     punchOut: fmtTime(existingAttendance?.punchOut),
   })
+  // Auto-detect punch type: if punchIn exists but no punchOut → default to out
+  const defaultPunchType = existingAttendance?.punchIn && !existingAttendance?.punchOut ? 'out' : 'in'
+  const [punchType, setPunchType] = useState(defaultPunchType)
+  const [punchTime, setPunchTime] = useState(
+    defaultPunchType === 'out'
+      ? (fmtTime(existingAttendance?.punchOut) || nowTimeStr())
+      : (fmtTime(existingAttendance?.punchIn)  || nowTimeStr())
+  )
+
   const [locationData, setLocationData]   = useState(null)
   const [capturedPhoto, setCapturedPhoto] = useState(existingAttendance?.photo || null)
   const [showCamera, setShowCamera]       = useState(false)
@@ -203,17 +244,17 @@ export default function AttendanceModal({ date, existingAttendance, allDayAttend
 
       if (capturedPhoto) payload.photo = capturedPhoto
 
-      if (formData.punchIn) {
-        const [h, m] = formData.punchIn.split(':')
+      if (punchTime) {
+        const [h, m] = punchTime.split(':')
         const dt = new Date(date)
         dt.setHours(+h, +m, 0, 0)
-        payload.punchIn = dt.toISOString()
-      }
-      if (formData.punchOut) {
-        const [h, m] = formData.punchOut.split(':')
-        const dt = new Date(date)
-        dt.setHours(+h, +m, 0, 0)
-        payload.punchOut = dt.toISOString()
+        if (punchType === 'in') {
+          payload.punchIn = dt.toISOString()
+        } else {
+          payload.punchOut = dt.toISOString()
+          // preserve existing punchIn when editing
+          if (editingRecord?.punchIn) payload.punchIn = editingRecord.punchIn
+        }
       }
 
       const res  = await fetch('/api/attendance', {
@@ -253,6 +294,13 @@ export default function AttendanceModal({ date, existingAttendance, allDayAttend
       punchIn:  fmtTime(record.punchIn),
       punchOut: fmtTime(record.punchOut),
     })
+    const type = record.punchIn && !record.punchOut ? 'out' : 'in'
+    setPunchType(type)
+    setPunchTime(
+      type === 'out'
+        ? (fmtTime(record.punchOut) || nowTimeStr())
+        : (fmtTime(record.punchIn)  || nowTimeStr())
+    )
     setCapturedPhoto(record.photo || null)
     setMode('form')
   }
@@ -341,12 +389,22 @@ export default function AttendanceModal({ date, existingAttendance, allDayAttend
                 )}
 
                 {/* Location */}
-                {editingRecord.location && (
+                {(editingRecord.latitude && editingRecord.longitude) ? (
+                  <div className="space-y-2">
+                    <MapPreview lat={editingRecord.latitude} lng={editingRecord.longitude} height={180} />
+                    {editingRecord.location && (
+                      <div className="flex items-start gap-2 px-1">
+                        <span className="text-xs mt-0.5">📍</span>
+                        <p className="text-xs text-slate-500 dark:text-slate-400 leading-relaxed">{editingRecord.location}</p>
+                      </div>
+                    )}
+                  </div>
+                ) : editingRecord.location ? (
                   <div className="flex items-start gap-3 p-3 bg-slate-50 dark:bg-slate-700/40 rounded-xl">
                     <span className="text-base mt-0.5">📍</span>
                     <p className="text-xs text-slate-600 dark:text-slate-300 leading-relaxed">{editingRecord.location}</p>
                   </div>
-                )}
+                ) : null}
 
                 {/* Notes */}
                 {editingRecord.notes && (
@@ -472,36 +530,65 @@ export default function AttendanceModal({ date, existingAttendance, allDayAttend
                 </div>
               </div>
 
-              {/* Punch Times */}
+              {/* Punch Type + Auto Time */}
               {(formData.status === 'office' || formData.status === 'field') && (
                 <div>
-                  <p className="text-[10px] font-bold text-slate-400 dark:text-slate-500 uppercase tracking-widest mb-2">Punch Times</p>
-                  <div className="grid grid-cols-2 gap-3">
-                    <div>
-                      <div className="flex items-center gap-1.5 mb-1.5">
-                        <div className="w-2 h-2 bg-emerald-500 rounded-full"></div>
-                        <span className="text-xs text-slate-500 dark:text-slate-400">Punch In</span>
-                      </div>
-                      <input
-                        type="time"
-                        value={formData.punchIn}
-                        onChange={e => setFormData(f => ({ ...f, punchIn: e.target.value }))}
-                        className="w-full px-3 py-2.5 rounded-xl bg-slate-100 dark:bg-slate-700 border-0 text-slate-900 dark:text-white text-sm focus:ring-2 focus:ring-blue-500 outline-none"
-                      />
-                    </div>
-                    <div>
-                      <div className="flex items-center gap-1.5 mb-1.5">
-                        <div className="w-2 h-2 bg-red-400 rounded-full"></div>
-                        <span className="text-xs text-slate-500 dark:text-slate-400">Punch Out</span>
-                      </div>
-                      <input
-                        type="time"
-                        value={formData.punchOut}
-                        onChange={e => setFormData(f => ({ ...f, punchOut: e.target.value }))}
-                        className="w-full px-3 py-2.5 rounded-xl bg-slate-100 dark:bg-slate-700 border-0 text-slate-900 dark:text-white text-sm focus:ring-2 focus:ring-blue-500 outline-none"
-                      />
-                    </div>
+                  <p className="text-[10px] font-bold text-slate-400 dark:text-slate-500 uppercase tracking-widest mb-2">Punch Type</p>
+                  <div className="flex gap-2 mb-3">
+                    <button
+                      type="button"
+                      onClick={() => { setPunchType('in'); if (!punchTime) setPunchTime(nowTimeStr()) }}
+                      className={`flex-1 flex items-center justify-center gap-2 py-3 rounded-xl font-semibold text-sm border-2 transition-all ${
+                        punchType === 'in'
+                          ? 'border-emerald-500 bg-emerald-50 dark:bg-emerald-900/20 text-emerald-700 dark:text-emerald-400 shadow-md shadow-emerald-500/10'
+                          : 'border-slate-200 dark:border-slate-700 text-slate-500 dark:text-slate-400 hover:border-slate-300'
+                      }`}
+                    >
+                      <div className={`w-2.5 h-2.5 rounded-full ${punchType === 'in' ? 'bg-emerald-500' : 'bg-slate-300 dark:bg-slate-600'}`} />
+                      Punch In
+                    </button>
+                    <button
+                      type="button"
+                      onClick={() => { setPunchType('out'); if (!punchTime) setPunchTime(nowTimeStr()) }}
+                      className={`flex-1 flex items-center justify-center gap-2 py-3 rounded-xl font-semibold text-sm border-2 transition-all ${
+                        punchType === 'out'
+                          ? 'border-red-400 bg-red-50 dark:bg-red-900/20 text-red-700 dark:text-red-400 shadow-md shadow-red-500/10'
+                          : 'border-slate-200 dark:border-slate-700 text-slate-500 dark:text-slate-400 hover:border-slate-300'
+                      }`}
+                    >
+                      <div className={`w-2.5 h-2.5 rounded-full ${punchType === 'out' ? 'bg-red-400' : 'bg-slate-300 dark:bg-slate-600'}`} />
+                      Punch Out
+                    </button>
                   </div>
+                  <div className="flex items-center gap-3">
+                    <div className="flex-1">
+                      <div className="flex items-center gap-1.5 mb-1.5">
+                        <div className={`w-2 h-2 rounded-full ${punchType === 'in' ? 'bg-emerald-500' : 'bg-red-400'}`} />
+                        <span className="text-xs text-slate-500 dark:text-slate-400">
+                          {punchType === 'in' ? 'Punch-In Time' : 'Punch-Out Time'}
+                        </span>
+                      </div>
+                      <input
+                        type="time"
+                        value={punchTime}
+                        onChange={e => setPunchTime(e.target.value)}
+                        className="w-full px-3 py-2.5 rounded-xl bg-slate-100 dark:bg-slate-700 border-0 text-slate-900 dark:text-white text-sm focus:ring-2 focus:ring-blue-500 outline-none"
+                      />
+                    </div>
+                    <button
+                      type="button"
+                      onClick={() => setPunchTime(nowTimeStr())}
+                      className="mt-5 px-3 py-2.5 rounded-xl bg-blue-50 dark:bg-blue-900/20 text-blue-600 dark:text-blue-400 text-xs font-semibold hover:bg-blue-100 dark:hover:bg-blue-900/40 transition-colors border border-blue-200 dark:border-blue-700/50 whitespace-nowrap"
+                      title="Set to current time"
+                    >
+                      Now
+                    </button>
+                  </div>
+                  {editingRecord?.punchIn && punchType === 'out' && (
+                    <p className="text-[11px] text-slate-400 mt-1.5 flex items-center gap-1">
+                      <span>⏰</span> Punch-In was at {fmtTimeDisplay(editingRecord.punchIn)}
+                    </p>
+                  )}
                 </div>
               )}
 
@@ -661,6 +748,11 @@ export default function AttendanceModal({ date, existingAttendance, allDayAttend
                   )}
                 </div>
                 <LocationPicker onLocationSelect={handleLocationSelect} required={false} />
+                {locationData?.latitude && locationData?.longitude && (
+                  <div className="mt-3">
+                    <MapPreview lat={locationData.latitude} lng={locationData.longitude} height={150} />
+                  </div>
+                )}
               </div>
 
               {/* Notes */}
